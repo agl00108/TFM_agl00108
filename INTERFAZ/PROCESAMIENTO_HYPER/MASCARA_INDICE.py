@@ -70,44 +70,37 @@ Args:
 
 """
 def exportar_a_vector(imagen, mascara, ruta_shapefile, metadatos=None, min_area=1000):
-    transform = Affine(1, 0, 0, 0, 1, 0)  # Definimos una transformación afín (espacial)
-    geometries = shapes(mascara.astype(np.uint8), transform=transform)  # Extraemos las geometrías de la máscara
-    schema = {'geometry': 'Polygon', 'properties': {'value': 'int'}}  # Esquema de los datos en el shapefile
+    transform = Affine(1, 0, 0, 0, 1, 0)
+    geometries = shapes(mascara.astype(np.uint8), transform=transform)
+    schema = {'geometry': 'Polygon', 'properties': {'value': 'int'}}
 
-    # Abrimos el shapefile para escribir las geometrías
     with fiona.open(ruta_shapefile, 'w', driver='ESRI Shapefile', schema=schema) as shapefile:
         for geom, value in geometries:
-            if value == 1:  # Solo procesamos las geometrías correspondientes a la vegetación
-                polygon = shape(geom)  # Convertimos la geometría en un polígono
-                if polygon.area >= min_area:  # Filtramos por área mínima
+            if value == 1:
+                polygon = shape(geom)
+                if polygon.area >= min_area:
                     shapefile.write({
-                        'geometry': mapping(polygon),  # Escribimos la geometría en el shapefile
-                        'properties': {'value': int(value)}  # Escribimos el valor del píxel (1 para vegetación)
+                        'geometry': mapping(polygon),
+                        'properties': {'value': int(value)}
                     })
 
 # Función principal para procesar una imagen hiperespectral
-def procesar_imagen(ruta_imagen, exportar_raster, exportar_vector, ruta_exportacion, nombre_archivo):
     """
     Procesa una imagen hiperespectral, calcula el EVI, genera una máscara de vegetación y 
     exporta los resultados en formato raster y vectorial (shapefile).
     """
-    img = spectral.open_image(ruta_imagen)  # Abrimos la imagen hiperespectral
-    imagen = img.load().astype(np.float32)  # Cargamos la imagen como un array de flotantes
-    ruta_hdr = ruta_imagen  # La ruta del archivo .hdr es la misma que la de la imagen
-    metadatos = extraer_metadatos_hdr(ruta_hdr)  # Extraemos los metadatos del archivo .hdr
+def procesar_imagen(ruta_imagen, exportar_raster, exportar_vector, ruta_exportacion, nombre_archivo):
+    img = spectral.open_image(ruta_imagen)
+    imagen = img.load().astype(np.float32)
+    ruta_hdr = ruta_imagen
+    metadatos = extraer_metadatos_hdr(ruta_hdr)
 
-    # Seleccionamos las bandas necesarias (rojo, NIR, azul) según el índice EVI
-    banda_rojo = imagen[:, :, 200]  # Banda roja (por índice de banda)
-    banda_nir = imagen[:, :, 307]  # Banda NIR (infrarrojo cercano)
-    banda_azul = imagen[:, :, 53]  # Banda azul
+    banda_rojo = imagen[:, :, 200]
+    banda_nir = imagen[:, :, 307]
+    banda_azul = imagen[:, :, 53]
 
-    # Calculamos el EVI
     evi = calcular_evi(banda_rojo, banda_nir, banda_azul)
-
-    # Generamos la máscara de vegetación (valores de EVI entre 0.21 y 2.0)
     mascara_vegetacion = (evi >= 0.21) & (evi <= 2)
-
-    # Definimos la transformación espacial de la imagen
     transform = Affine(1, 0, 0, 0, 1, 0)
 
     # Exportar el resultado como archivo raster (opcional)
@@ -117,7 +110,7 @@ def procesar_imagen(ruta_imagen, exportar_raster, exportar_vector, ruta_exportac
             ruta_mascara_tif, 'w', driver='GTiff', height=mascara_vegetacion.shape[0],
             width=mascara_vegetacion.shape[1], count=1, dtype=np.uint8, transform=transform
         ) as dst:
-            dst.write(mascara_vegetacion.astype(np.uint8), 1)  # Escribimos la máscara en el archivo raster
+            dst.write(mascara_vegetacion.astype(np.uint8), 1)
         print(f"Máscara raster guardada en: {ruta_mascara_tif}")
 
     # Exportar el resultado como shapefile (vectorial) (opcional)

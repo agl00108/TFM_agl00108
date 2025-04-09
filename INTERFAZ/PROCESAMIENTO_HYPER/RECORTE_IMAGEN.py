@@ -27,18 +27,15 @@ def recortar_imagen(shapefile, imagen, salida, output_filename="imagen_recortada
     except Exception as e:
         raise Exception(f"Error al leer el shapefile: {str(e)}")
 
-    print(f"Intentando abrir imagen ENVI: {imagen}")  # Depuración
     try:
         img = envi.open(imagen, imagen.replace(".hdr", ".dat"))
         img_data = np.array(img.load())
     except Exception as e:
         raise Exception(f"Error al abrir la imagen ENVI: {str(e)}")
 
-    # Crear un perfil rasterio para la imagen ENVI
     height, width, bands = img_data.shape
-    transform = Affine(1, 0, 0, 0, 1, 0)  # Transformación simple (puede ajustarse si hay metadatos de georreferenciación)
+    transform = Affine(1, 0, 0, 0, 1, 0)
 
-    # Crear un archivo temporal para usar con rasterio
     temp_tif = "temp_image.tif"
     with rasterio.open(
         temp_tif,

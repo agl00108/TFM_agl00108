@@ -75,8 +75,7 @@ def obtener_valores_espectrales(ruta_imagen, puntos):
 
 
 # Función principal para procesar el shapefile y realizar el clustering espectral
-def procesar_shapefile_y_extraer_datos(ruta_shapefile, ruta_imagen, puntos_base_por_unidad_area, ruta_excel_salida,
-                                       num_clusters):
+def procesar_shapefile_y_extraer_datos(ruta_shapefile, ruta_imagen, puntos_base_por_unidad_area, ruta_excel_salida, num_clusters, especie=None):
     """
     Procesa un shapefile y una imagen hiperespectral para realizar clustering espectral y guardar los resultados en un Excel.
 
@@ -87,43 +86,39 @@ def procesar_shapefile_y_extraer_datos(ruta_shapefile, ruta_imagen, puntos_base_
         ruta_excel_salida: Ruta donde guardar el archivo Excel de salida.
         num_clusters: Número de clusters para el clustering espectral.
     """
-    # Lee el shapefile usando geopandas
     gdf = gpd.read_file(ruta_shapefile)
-    todos_dfs = []  # Lista para almacenar los DataFrames de cada polígono
+    todos_dfs = []
 
-    # Itera sobre cada polígono (hoja) en el shapefile
     for idx, fila in gdf.iterrows():
-        poligono = fila['geometry']  # Obtiene la geometría del polígono
-        area = poligono.area  # Calcula el área del polígono
-        # Calcula el número de puntos a generar basado en el área
+        poligono = fila['geometry']
+        area = poligono.area
         puntos_por_poligono = max(1, int(puntos_base_por_unidad_area * area))
-        # Genera puntos aleatorios dentro del polígono
         puntos_aleatorios = generar_puntos_aleatorios(poligono, puntos_por_poligono)
-        # Extrae los valores espectrales en esos puntos
         valores_espectrales = obtener_valores_espectrales(ruta_imagen, puntos_aleatorios)
 
-        # Crea un DataFrame con los valores espectrales y elimina filas con NaN
         df = pd.DataFrame(valores_espectrales).dropna()
         if len(df) < num_clusters:
-            # Si hay menos puntos que clusters, calcula la media sin clustering
             df_media = pd.DataFrame(df.mean().values.reshape(1, -1), columns=df.columns)
             df_media.insert(0, 'Hoja', f"Hoja {idx}")
-            df_media.insert(1, 'Cluster', -1)  # Indica que no se realizó clustering
+            df_media.insert(1, 'Cluster', -1)
+            if especie:
+                df_media.insert(2, 'Especie', especie)  # Agregar columna de especie si se proporcionó
             todos_dfs.append(df_media)
         else:
-            # Realiza el clustering espectral
             clustering = SpectralClustering(n_clusters=num_clusters, affinity='nearest_neighbors', random_state=42)
             etiquetas = clustering.fit_predict(df)
             df['Cluster'] = etiquetas
-            # Calcula la media de cada cluster
             df_media = df.groupby('Cluster').mean().reset_index()
             df_media.insert(0, 'Hoja', f"Hoja {idx}")
+            if especie:
+                df_media.insert(2, 'Especie', especie)  # Agregar columna de especie si se proporcionó
             todos_dfs.append(df_media)
 
-    # Combina todos los DataFrames en uno solo
     df_final = pd.concat(todos_dfs, ignore_index=True)
-    # Renombra las columnas para mayor claridad
-    df_final.columns = ['Hoja', 'Cluster'] + [f'Banda_{i}' for i in range(len(df_final.columns) - 2)]
-    # Guarda el resultado en un archivo Excel
+    # Renombrar columnas (ajustar según si hay especie o no)
+    columnas_base = ['Hoja', 'Cluster']
+    if especie:
+        columnas_base.append('Especie')
+    df_final.columns = columnas_base + [f'Banda_{i}' for i in range(len(df_final.columns) - len(columnas_base))]
     df_final.to_excel(ruta_excel_salida, index=False)
     print(f"Resultados guardados en: {ruta_excel_salida}")
