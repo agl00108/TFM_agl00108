@@ -3,8 +3,11 @@ from tkinter import ttk, filedialog, messagebox
 from INTERFAZ.PROCESAMIENTO_HYPER.MASCARA_INDICE import procesar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.RECORTE_IMAGEN import recortar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION import procesar_shapefile_y_extraer_datos
-from INTERFAZ.PROCESAMIENTO_RGB.SEGMENTADOR_HOJAS import SegmentadorHojasApp
+
 import os
+
+
+
 
 class InterfazApp:
     def __init__(self, root):
