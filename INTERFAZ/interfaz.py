@@ -6,9 +6,6 @@ from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION import procesar_shapefile_y_extra
 
 import os
 
-
-
-
 class InterfazApp:
     def __init__(self, root):
         self.root = root
@@ -184,7 +181,7 @@ class InterfazApp:
             messagebox.showinfo("Éxito", f"Proceso finalizado. Excel generado en: {excel_path}")
             # Pregunta para volver al inicio
             respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
-            if respuesta:  # Si el usuario selecciona "Sí"
+            if respuesta:
                 self.step = 0
                 self.imagen_hdr = ""
                 self.shapefile_path = ""

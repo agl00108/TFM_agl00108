@@ -19,18 +19,6 @@ BATCH_SIZE = 32
 EPOCHS = 50
 PATIENCE = 10
 
-# Mejores parámetros obtenidos ARBEQUINA
-'''
-best_params = {
-    'dropout_rate': 0.35483380605435355,
-    'ff_dim': 64,
-    'filters_1': 16,
-    'filters_2': 32,
-    'filters_3': 64,
-    'filters_4': 128,
-    'kernel_size': 4
-}'''
-
 # Mejores parámetros obtenidos PICUAL
 best_params = {
     'dropout_rate': 0.35483380605435355,
@@ -41,7 +29,6 @@ best_params = {
     'filters_4': 111.31192330114831,
     'kernel_size': 4.880006256681035
 }
-
 
 # Función para establecer la semilla
 def establecer_semilla(seed=1234):
@@ -74,8 +61,7 @@ def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_pro
 # Función para preparar los datos
 def preparar_datos(df):
     X = df.iloc[:, 3:].values
-    y = df['Variedad'].apply(lambda x: 0 if x == 'AR' else 1).values
-    #y = df['Variedad'].apply(lambda x: 0 if x == 'PI' else 1).values
+    y = df['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -131,10 +117,8 @@ def ejecutar_cnn(df):
     plt.legend(loc='lower right')
     plt.show()
 
-    # Segunda gráfica: precisión y pérdida con diferentes colores y título
     plt.figure(figsize=(12, 6))
 
-    # Subplot para la precisión, colores y marcadores diferentes
     plt.subplot(1, 2, 1)
     plt.plot(history.history['accuracy'], label='Train Accuracy', color='darkblue', marker='o')
     plt.plot(history.history['val_accuracy'], label='Test Accuracy', color='orange', marker='s')
@@ -143,7 +127,6 @@ def ejecutar_cnn(df):
     plt.ylabel('Accuracy', fontsize=12)
     plt.legend(loc='upper left')
 
-    # Subplot para la pérdida, colores diferentes
     plt.subplot(1, 2, 2)
     plt.plot(history.history['loss'], label='Train Loss', color='crimson', linestyle='-.')
     plt.plot(history.history['val_loss'], label='Test Loss', color='darkgreen', linestyle='--')
@@ -169,9 +152,8 @@ def ejecutar_cnn(df):
 
     return model, scaler
 
-# PREDICCIÓN DE DATOS NUEVOS
-data = pd.read_csv('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosModeloArbequina.csv')
-#data = pd.read_csv('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosModeloPicual.csv')
+
+data = pd.read_excel('../../Resultados/excel/ARBEQUINA/PicArb.xlsx')
 
 # Ejecutar el modelo CNN y obtener el modelo entrenado y el escalador
 model, scaler = ejecutar_cnn(data)
@@ -179,8 +161,7 @@ model, scaler = ejecutar_cnn(data)
 # Función para preprocesar nuevos datos y realizar predicciones
 def comprobar_nuevos_datos(model, nuevos_datos, scaler):
     X_nuevos = nuevos_datos.iloc[:, 3:].values
-    #y_nuevos = nuevos_datos['Variedad'].apply(lambda x: 0 if x == 'AR' else 1).values
-    y_nuevos = nuevos_datos['Variedad'].apply(lambda x: 0 if x == 'PI' else 1).values
+    y_nuevos = nuevos_datos['Especie'].apply(lambda x: 0 if x == 'PI' else 1).values
 
     X_nuevos = X_nuevos.reshape(X_nuevos.shape[0], X_nuevos.shape[1], 1)
 
@@ -210,9 +191,8 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler):
     plt.show()
 
 # Cargar los nuevos datos desde un archivo CSV
-#nuevos_datos = pd.read_csv('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaArbequina.csv')
-nuevos_datos = pd.read_csv('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.csv')
+#nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.csv')
 
 # Preprocesar y comprobar los nuevos datos con el modelo entrenado
-comprobar_nuevos_datos(model, nuevos_datos, scaler)
+#comprobar_nuevos_datos(model, nuevos_datos, scaler)
 
