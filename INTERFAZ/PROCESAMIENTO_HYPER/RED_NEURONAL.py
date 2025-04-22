@@ -12,12 +12,13 @@ from collections import Counter
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+from imblearn.over_sampling import SMOTE
 
 # Definir las constantes para los parámetros del modelo
 POOL_SIZE = 3
 BATCH_SIZE = 32
 EPOCHS = 50
-PATIENCE = 10
+PATIENCE = 8
 
 # Mejores parámetros obtenidos PICUAL
 best_params = {
@@ -30,11 +31,13 @@ best_params = {
     'kernel_size': 4.880006256681035
 }
 
+
 # Función para establecer la semilla
 def establecer_semilla(seed=1234):
     np.random.seed(seed)
     tf.random.set_seed(seed)
     random.seed(seed)
+
 
 # Función para mostrar los resultados del modelo
 def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_prob, y_test):
@@ -60,24 +63,46 @@ def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_pro
 
 # Función para preparar los datos
 def preparar_datos(df):
-    X = df.iloc[:, 3:].values
-    y = df['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
+    # Filtrar filas donde ninguna banda (columnas 1 a 187, índices 3 a 189 en el DataFrame) tenga un valor > 0.35
+    bandas = df.iloc[:, 3:190]
+    filtro = (bandas <= 0.35).all(axis=1)
+    df_filtrado = df[filtro].copy()
+    print(f"Filas originales: {len(df)}, Filas después de filtrar: {len(df_filtrado)}")
 
+    # Preparar características (X) y etiquetas (y) a partir del DataFrame filtrado
+    X = df_filtrado.iloc[:, 3:].values
+    y = df_filtrado['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
+
+    # Dividir los datos en conjuntos de entrenamiento y prueba
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
-    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+    # Contamos cuántos 0 y 1 hay en y_train antes de SMOTE
+    train_counts = Counter(y_train)
+    print(f'En y_train antes de SMOTE, 0: {train_counts[0]}, 1: {train_counts[1]}')
 
+    # Aplicar SMOTE para balancear las clases
+    smote = SMOTE(random_state=42)
+    X_train_2d = X_train.reshape(X_train.shape[0], -1)  # Convertir a 2D para SMOTE
+    X_train_smote, y_train_smote = smote.fit_resample(X_train_2d, y_train)
+
+    # Restaurar la forma 3D después de SMOTE
+    X_train = X_train_smote.reshape(X_train_smote.shape[0], X_train.shape[1], 1)
+
+    # Actualizar y_train con los datos balanceados
+    y_train = y_train_smote
+
+    # Contamos cuántos 0 y 1 hay en y_train después de SMOTE
+    train_counts_smote = Counter(y_train)
+    print(f'En y_train después de SMOTE, 0: {train_counts_smote[0]}, 1: {train_counts_smote[1]}')
+
+    # Contamos cuántos 0 y 1 hay en y_test
+    test_counts = Counter(y_test)
+    print(f'En y_test, 0: {test_counts[0]}, 1: {test_counts[1]}')
+
+    # Escalar los datos
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train.reshape(-1, X_train.shape[1])).reshape(X_train.shape)
     X_test = scaler.transform(X_test.reshape(-1, X_test.shape[1])).reshape(X_test.shape)
-
-    # Contamos cuántos 0 y 1 hay en y_train y y_test
-    train_counts = Counter(y_train)
-    test_counts = Counter(y_test)
-
-    print(f'En y_train, 0: {train_counts[0]}, 1: {train_counts[1]}')
-    print(f'En y_test, 0: {test_counts[0]}, 1: {test_counts[1]}')
 
     return X_train, X_test, y_train, y_test, scaler
 
@@ -90,11 +115,15 @@ def ejecutar_cnn(df):
 
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1], X_train.shape[2])))
-    model.add(Conv1D(filters=int(best_params['filters_1']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+    model.add(
+        Conv1D(filters=int(best_params['filters_1']), kernel_size=int(best_params['kernel_size']), activation='elu'))
     model.add(MaxPooling1D(pool_size=POOL_SIZE))
-    model.add(Conv1D(filters=int(best_params['filters_2']), kernel_size=int(best_params['kernel_size']), activation='elu'))
-    model.add(Conv1D(filters=int(best_params['filters_3']), kernel_size=int(best_params['kernel_size']), activation='elu'))
-    model.add(Conv1D(filters=int(best_params['filters_4']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+    model.add(
+        Conv1D(filters=int(best_params['filters_2']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+    model.add(
+        Conv1D(filters=int(best_params['filters_3']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+    model.add(
+        Conv1D(filters=int(best_params['filters_4']), kernel_size=int(best_params['kernel_size']), activation='elu'))
     model.add(MaxPooling1D(pool_size=POOL_SIZE))
     model.add(Flatten())
     model.add(Dense(int(best_params['ff_dim']), activation='relu'))
@@ -153,7 +182,8 @@ def ejecutar_cnn(df):
     return model, scaler
 
 
-data = pd.read_excel('../../Resultados/excel/ARBEQUINA/PicArb.xlsx')
+# PREDICCIÓN DE DATOS
+data = pd.read_excel('../../Resultados/excel/TODOS/TODOS.xlsx')
 
 # Ejecutar el modelo CNN y obtener el modelo entrenado y el escalador
 model, scaler = ejecutar_cnn(data)
@@ -190,9 +220,8 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler):
     plt.yticks(fontsize=12)
     plt.show()
 
-# Cargar los nuevos datos desde un archivo CSV
-#nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.csv')
+# Cargar los nuevos datos desde un archivo Excel
+# nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.xlsx')
 
 # Preprocesar y comprobar los nuevos datos con el modelo entrenado
-#comprobar_nuevos_datos(model, nuevos_datos, scaler)
-
+# comprobar_nuevos_datos(model, nuevos_datos, scaler)
