@@ -1,0 +1,1 @@
+{"filters_1": 32, "filters_2": 112, "filters_3": 256, "filters_4": 192, "kernel_size": 7, "ff_dim": 128, "dropout_rate": 0.4, "learning_rate": 0.00010570471276936682, "pool_size": 2, "batch_size": 32, "patience": 8}

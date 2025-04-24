@@ -2,11 +2,12 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import random
+import json
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import Sequential
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, Dropout, Input, LayerNormalization
+from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, Dropout, Input
 import time
 from collections import Counter
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
@@ -14,22 +15,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from imblearn.over_sampling import SMOTE
 
-# Definir las constantes para los parámetros del modelo
-POOL_SIZE = 3
-BATCH_SIZE = 32
-EPOCHS = 50
-PATIENCE = 8
+# Cargar los mejores hiperparámetros desde el archivo JSON
+with open('best_params.json', 'r') as f:
+    best_params = json.load(f)
 
-# Mejores parámetros obtenidos PICUAL
-best_params = {
-    'dropout_rate': 0.35483380605435355,
-    'ff_dim': 59.99681409968073,
-    'filters_1': 14.017624178380828,
-    'filters_2': 29.7391777595531,
-    'filters_3': 60.67157395019049,
-    'filters_4': 111.31192330114831,
-    'kernel_size': 4.880006256681035
-}
+# Definir las constantes para los parámetros del modelo
+POOL_SIZE = best_params['pool_size']
+BATCH_SIZE = best_params['batch_size']
+EPOCHS = 50
+PATIENCE = best_params['patience']
 
 
 # Función para establecer la semilla
@@ -106,6 +100,7 @@ def preparar_datos(df):
 
     return X_train, X_test, y_train, y_test, scaler
 
+
 # Función principal para ejecutar la red neuronal CNN
 def ejecutar_cnn(df):
     establecer_semilla()
@@ -127,9 +122,11 @@ def ejecutar_cnn(df):
     model.add(MaxPooling1D(pool_size=POOL_SIZE))
     model.add(Flatten())
     model.add(Dense(int(best_params['ff_dim']), activation='relu'))
+    model.add(Dropout(best_params['dropout_rate']))
     model.add(Dense(1, activation='sigmoid'))
 
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy',
+                  optimizer=tf.keras.optimizers.Adam(learning_rate=best_params['learning_rate']), metrics=['accuracy'])
 
     early_stopping = EarlyStopping(monitor='val_accuracy', patience=PATIENCE, restore_best_weights=True)
 
@@ -182,16 +179,18 @@ def ejecutar_cnn(df):
     return model, scaler
 
 
-# PREDICCIÓN DE DATOS
-data = pd.read_excel('../../Resultados/excel/TODOS/TODOS.xlsx')
-
-# Ejecutar el modelo CNN y obtener el modelo entrenado y el escalador
-model, scaler = ejecutar_cnn(data)
-
 # Función para preprocesar nuevos datos y realizar predicciones
 def comprobar_nuevos_datos(model, nuevos_datos, scaler):
-    X_nuevos = nuevos_datos.iloc[:, 3:].values
-    y_nuevos = nuevos_datos['Especie'].apply(lambda x: 0 if x == 'PI' else 1).values
+    # Filtrar filas con valores > 0.35 en las bandas 1 a 187
+    bandas_nuevas = nuevos_datos.iloc[:, 3:190]
+    filtro_nuevas = (bandas_nuevas <= 0.35).all(axis=1)
+    nuevos_datos_filtrados = nuevos_datos[filtro_nuevas].copy()
+    print(
+        f"Filas originales (nuevos datos): {len(nuevos_datos)}, Filas después de filtrar: {len(nuevos_datos_filtrados)}")
+
+    # Preparar datos filtrados
+    X_nuevos = nuevos_datos_filtrados.iloc[:, 3:].values
+    y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PI' else 1).values
 
     X_nuevos = X_nuevos.reshape(X_nuevos.shape[0], X_nuevos.shape[1], 1)
 
@@ -220,8 +219,15 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler):
     plt.yticks(fontsize=12)
     plt.show()
 
-# Cargar los nuevos datos desde un archivo Excel
-# nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.xlsx')
 
-# Preprocesar y comprobar los nuevos datos con el modelo entrenado
-# comprobar_nuevos_datos(model, nuevos_datos, scaler)
+# Ejemplo de ejecución
+if __name__ == "__main__":
+    # Cargar los datos
+    data = pd.read_excel('../../Resultados/excel/LUCIO/PicLuc.xlsx')
+
+    # Ejecutar el modelo CNN
+    model, scaler = ejecutar_cnn(data)
+
+    # Opcional: Comprobar nuevos datos
+    # nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.xlsx')
+    # comprobar_nuevos_datos(model, nuevos_datos, scaler)
