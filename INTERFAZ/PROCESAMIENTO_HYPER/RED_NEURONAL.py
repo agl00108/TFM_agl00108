@@ -1,4 +1,5 @@
 import numpy as np
+import openpyxl
 import pandas as pd
 import tensorflow as tf
 import random
@@ -14,6 +15,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import matplotlib.pyplot as plt
 import seaborn as sns
 from imblearn.over_sampling import SMOTE
+from openpyxl.styles import Font, Alignment
 
 # Cargar los mejores hiperparámetros desde el archivo JSON
 with open('best_params.json', 'r') as f:
@@ -25,13 +27,11 @@ BATCH_SIZE = best_params['batch_size']
 EPOCHS = 50
 PATIENCE = best_params['patience']
 
-
 # Función para establecer la semilla
 def establecer_semilla(seed=1234):
     np.random.seed(seed)
     tf.random.set_seed(seed)
     random.seed(seed)
-
 
 # Función para mostrar los resultados del modelo
 def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_prob, y_test):
@@ -54,18 +54,23 @@ def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_pro
     plt.yticks(fontsize=12)
     plt.show()
 
-
 # Función para preparar los datos
 def preparar_datos(df):
-    # Filtrar filas donde ninguna banda (columnas 1 a 187, índices 3 a 189 en el DataFrame) tenga un valor > 0.35
+    # Imprimir número de columnas para depuración
+    print(f"Número de columnas en el DataFrame de entrenamiento: {df.shape[1]}")
+
+    # Filtrar filas donde ninguna banda (columnas 1 a 187, índices 3 a 189) tenga un valor > 0.35
     bandas = df.iloc[:, 3:190]
     filtro = (bandas <= 0.35).all(axis=1)
     df_filtrado = df[filtro].copy()
     print(f"Filas originales: {len(df)}, Filas después de filtrar: {len(df_filtrado)}")
 
     # Preparar características (X) y etiquetas (y) a partir del DataFrame filtrado
-    X = df_filtrado.iloc[:, 3:].values
+    X = df_filtrado.iloc[:, 3:].values  # Usar todas las bandas desde la columna 3
     y = df_filtrado['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
+
+    # Verificar la forma de X
+    print(f"Forma de X antes de dividir: {X.shape}")
 
     # Dividir los datos en conjuntos de entrenamiento y prueba
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -94,12 +99,18 @@ def preparar_datos(df):
     print(f'En y_test, 0: {test_counts[0]}, 1: {test_counts[1]}')
 
     # Escalar los datos
+    # Escalar los datos
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train.reshape(-1, X_train.shape[1])).reshape(X_train.shape)
-    X_test = scaler.transform(X_test.reshape(-1, X_test.shape[1])).reshape(X_test.shape)
+
+    X_test = scaler.transform(X_test.reshape(-1, X_test.shape[1]))
+    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+
+    # Imprimir formas finales
+    print(f"Forma de X_train: {X_train.shape}")
+    print(f"Forma de X_test: {X_test.shape}")
 
     return X_train, X_test, y_train, y_test, scaler
-
 
 # Función principal para ejecutar la red neuronal CNN
 def ejecutar_cnn(df):
@@ -178,29 +189,40 @@ def ejecutar_cnn(df):
 
     return model, scaler
 
+def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="predicciones_por_hoja.xlsx"):
+    """
+    Preprocesa nuevos datos, realiza predicciones y genera un Excel con la especie mayoritaria por hoja.
+    """
+    print(f"Número de columnas en el DataFrame de nuevos datos: {nuevos_datos.shape[1]}")
 
-# Función para preprocesar nuevos datos y realizar predicciones
-def comprobar_nuevos_datos(model, nuevos_datos, scaler):
-    # Filtrar filas con valores > 0.35 en las bandas 1 a 187
     bandas_nuevas = nuevos_datos.iloc[:, 3:190]
     filtro_nuevas = (bandas_nuevas <= 0.35).all(axis=1)
     nuevos_datos_filtrados = nuevos_datos[filtro_nuevas].copy()
-    print(
-        f"Filas originales (nuevos datos): {len(nuevos_datos)}, Filas después de filtrar: {len(nuevos_datos_filtrados)}")
+    print(f"Filas originales (nuevos datos): {len(nuevos_datos)}, Filas después de filtrar: {len(nuevos_datos_filtrados)}")
 
-    # Preparar datos filtrados
+    if len(nuevos_datos_filtrados) == 0:
+        print("Error: No hay datos después de filtrar. Verifica los datos de entrada.")
+        return
+
     X_nuevos = nuevos_datos_filtrados.iloc[:, 3:].values
-    y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PI' else 1).values
+    y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
+    hojas = nuevos_datos_filtrados['Hoja'].values
 
-    X_nuevos = X_nuevos.reshape(X_nuevos.shape[0], X_nuevos.shape[1], 1)
+    print(f"Forma de X_nuevos antes de reshape: {X_nuevos.shape}")
+    X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1]))  # Asegurar 2D antes del escalado
+    X_nuevos = scaler.transform(X_nuevos)
+    X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1], 1)).astype(np.float32)
+    print(f"Forma de X_nuevos después de escalado y reshape: {X_nuevos.shape}")
+    print(f"Tipo de X_nuevos: {type(X_nuevos)}, dtype: {X_nuevos.dtype}")
 
-    X_nuevos = scaler.transform(X_nuevos.reshape(-1, X_nuevos.shape[1])).reshape(X_nuevos.shape)
-
+    # Realizar predicciones
     y_pred_prob = model.predict(X_nuevos)
-    y_pred = (y_pred_prob > 0.5).astype("int32")
+    y_pred = (y_pred_prob > 0.5).astype("int32").flatten()
 
-    print("\nPredicciones para los nuevos datos:")
-    print(y_pred.flatten())
+    y_pred_especie = ['PIC' if pred == 0 else 'No PIC' for pred in y_pred]
+
+    print("\nPredicciones para los nuevos datos (especies):")
+    print(y_pred_especie)
 
     print("\nValores reales:")
     print(y_nuevos)
@@ -219,15 +241,60 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler):
     plt.yticks(fontsize=12)
     plt.show()
 
+    predicciones_por_hoja = pd.DataFrame({
+        'Hoja': hojas,
+        'Especie_Predicha': y_pred_especie
+    })
+
+    especie_mayoritaria_por_hoja = {}
+    for hoja in predicciones_por_hoja['Hoja'].unique():
+        especies_hoja = predicciones_por_hoja[predicciones_por_hoja['Hoja'] == hoja]['Especie_Predicha']
+        conteo = Counter(especies_hoja)
+        especie_mayoritaria = conteo.most_common(1)[0][0]
+        especie_mayoritaria_por_hoja[hoja] = especie_mayoritaria
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb['Sheet'])
+
+    for hoja, especie in especie_mayoritaria_por_hoja.items():
+        ws = wb.create_sheet(title=str(hoja))
+        ws['A1'] = 'Hoja'
+        ws['B1'] = 'Especie Mayoritaria'
+        ws['A1'].font = Font(bold=True)
+        ws['B1'].font = Font(bold=True)
+        ws['A1'].alignment = Alignment(horizontal='center')
+        ws['B1'].alignment = Alignment(horizontal='center')
+        ws['A2'] = hoja
+        ws['B2'] = especie
+        ws['A2'].alignment = Alignment(horizontal='center')
+        ws['B2'].alignment = Alignment(horizontal='center')
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 20
+
+    wb.save(output_excel)
+    print(f"\nArchivo Excel generado: {output_excel}")
+
 
 # Ejemplo de ejecución
 if __name__ == "__main__":
     # Cargar los datos
-    data = pd.read_excel('../../Resultados/excel/LUCIO/PicLuc.xlsx')
+    data = pd.read_excel('../../Resultados/excel/TODOS/TODOS.xlsx')
+    nuevos_datos = pd.read_excel('../../Resultados/PICUAL/Picual_4/jjj/defseefwer.xlsx')
+
+    # Verificar número de columnas
+    print(f"Número de columnas en TODOS.xlsx: {data.shape[1]}")
+    print(f"Número de columnas en defseefwer.xlsx: {nuevos_datos.shape[1]}")
+
+    # Ajustar el número de bandas si es necesario
+    n_bandas = min(data.shape[1] - 3, nuevos_datos.shape[1] - 3)  # Usar el menor número de bandas
+    print(f"Número de bandas a usar: {n_bandas}")
+
+    # Recortar las columnas en ambos DataFrames para usar el mismo número de bandas
+    data = data.iloc[:, :3 + n_bandas]
+    nuevos_datos = nuevos_datos.iloc[:, :3 + n_bandas]
 
     # Ejecutar el modelo CNN
     model, scaler = ejecutar_cnn(data)
 
-    # Opcional: Comprobar nuevos datos
-    # nuevos_datos = pd.read_excel('../../../archivos/archivosRefactorizados/clusterizacionOlivos/DatosPruebaPicual.xlsx')
-    # comprobar_nuevos_datos(model, nuevos_datos, scaler)
+    # Comprobar nuevos datos
+    comprobar_nuevos_datos(model, nuevos_datos, scaler)

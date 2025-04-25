@@ -3,8 +3,11 @@ from tkinter import ttk, filedialog, messagebox
 from INTERFAZ.PROCESAMIENTO_HYPER.MASCARA_INDICE import procesar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.RECORTE_IMAGEN import recortar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION import procesar_shapefile_y_extraer_datos
-
 import os
+import pandas as pd
+# Desactivar advertencias de oneDNN
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import predecir_nuevos_datos
 
 class InterfazApp:
     def __init__(self, root):
@@ -14,6 +17,7 @@ class InterfazApp:
         self.imagen_hdr = ""
         self.shapefile_path = ""
         self.imagen_recortada_path = ""
+        self.excel_path = ""  # Guardamos la ruta del Excel generado
 
         self.container = ttk.Frame(root)
         self.container.pack(padx=10, pady=10)
@@ -44,6 +48,7 @@ class InterfazApp:
 
     def iniciar_procesamiento_rgb(self):
         self.clear_container()
+        # Asumimos que SegmentadorHojasApp está definida en otro lugar
         SegmentadorHojasApp(self.root)
 
     def show_step_1(self):
@@ -153,9 +158,9 @@ class InterfazApp:
         puntos = self.puntos_entry.get()
         clusters = self.clusters_entry.get()
         especie = self.especie_entry.get()
-        excel_path = self.excel_entry.get()
+        self.excel_path = self.excel_entry.get()
 
-        if not puntos or not clusters or not excel_path:
+        if not puntos or not clusters or not self.excel_path:
             messagebox.showerror("Error", "Complete todos los campos obligatorios (excepto especie).")
             return
 
@@ -169,25 +174,43 @@ class InterfazApp:
         self.info_label_3.config(text="Procesando clustering espectral...")
         self.root.update_idletasks()
         try:
-            procesar_shapefile_y_extraer_datos(self.shapefile_path, self.imagen_recortada_path, puntos, excel_path,
+            procesar_shapefile_y_extraer_datos(self.shapefile_path, self.imagen_recortada_path, puntos, self.excel_path,
                                                clusters, especie=especie if especie else None)
         except Exception as e:
             messagebox.showerror("Error", f"Error al realizar el clustering: {str(e)}")
             self.info_label_3.config(text="Error al realizar el clustering.")
             return
 
-        if os.path.exists(excel_path):
-            self.info_label_3.config(text=f"Excel generado en: {excel_path}")
-            messagebox.showinfo("Éxito", f"Proceso finalizado. Excel generado en: {excel_path}")
-            # Pregunta para volver al inicio
+        if os.path.exists(self.excel_path):
+            self.info_label_3.config(text=f"Excel generado en: {self.excel_path}")
+            # Realizar predicción con el modelo preentrenado
+            self.info_label_3.config(text="Realizando predicción con el modelo preentrenado...")
+            self.root.update_idletasks()
+            try:
+                # Cargar el archivo Excel generado
+                data = pd.read_excel(self.excel_path)
+                # Realizar predicciones
+                resultados = predecir_nuevos_datos(data)
+                # Guardar los resultados en un nuevo Excel
+                resultados_path = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
+                resultados.to_excel(resultados_path, index=False)
+                # Mostrar mensaje de éxito
+                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {resultados_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
+                self.info_label_3.config(text="Error al realizar la predicción.")
+                return
+
+            # Preguntar si desea volver al inicio
             respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
             if respuesta:
                 self.step = 0
                 self.imagen_hdr = ""
                 self.shapefile_path = ""
                 self.imagen_recortada_path = ""
+                self.excel_path = ""
                 self.show_step_0()
-            else:  # Si selecciona "No"
+            else:
                 self.root.quit()
         else:
             messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
