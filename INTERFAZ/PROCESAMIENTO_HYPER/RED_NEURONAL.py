@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import Sequential
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, Dropout, Input
+from tensorflow.keras.regularizers import l2
 import time
 from collections import Counter
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
@@ -16,6 +17,37 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from imblearn.over_sampling import SMOTE
 from openpyxl.styles import Font, Alignment
+
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
+
+def comparar_con_pca(X_train, X_nuevos):
+    # Asegurar que los datos estén en forma 2D
+    X_train_2d = X_train.reshape(X_train.shape[0], X_train.shape[1])
+    X_nuevos_2d = X_nuevos.reshape(X_nuevos.shape[0], X_nuevos.shape[1])
+
+    # Unir ambos conjuntos para aplicar PCA conjunto
+    X_total = np.vstack((X_train_2d, X_nuevos_2d))
+
+    # Crear etiquetas: 0 = Train, 1 = Nuevos
+    y_total = np.array([0] * X_train_2d.shape[0] + [1] * X_nuevos_2d.shape[0])
+
+    # Aplicar PCA
+    pca = PCA(n_components=2)
+    X_pca = pca.fit_transform(X_total)
+
+    # Dibujar
+    plt.figure(figsize=(10, 6))
+    plt.scatter(X_pca[y_total == 0, 0], X_pca[y_total == 0, 1], label='Train Data', alpha=0.6)
+    plt.scatter(X_pca[y_total == 1, 0], X_pca[y_total == 1, 1], label='Nuevos Datos', alpha=0.6)
+    plt.xlabel('PCA 1')
+    plt.ylabel('PCA 2')
+    plt.title('Comparación Train vs Nuevos Datos (PCA)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 
 # Cargar los mejores hiperparámetros desde el archivo JSON
 with open('best_params.json', 'r') as f:
@@ -121,19 +153,24 @@ def ejecutar_cnn(df):
 
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1], X_train.shape[2])))
-    model.add(
-        Conv1D(filters=int(best_params['filters_1']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+
+    model.add(Conv1D(filters=int(best_params['filters_1']), kernel_size=int(best_params['kernel_size']),
+                     activation='elu', kernel_regularizer=l2(0.001)))
     model.add(MaxPooling1D(pool_size=POOL_SIZE))
-    model.add(
-        Conv1D(filters=int(best_params['filters_2']), kernel_size=int(best_params['kernel_size']), activation='elu'))
-    model.add(
-        Conv1D(filters=int(best_params['filters_3']), kernel_size=int(best_params['kernel_size']), activation='elu'))
-    model.add(
-        Conv1D(filters=int(best_params['filters_4']), kernel_size=int(best_params['kernel_size']), activation='elu'))
+
+    model.add(Conv1D(filters=int(best_params['filters_2']), kernel_size=int(best_params['kernel_size']),
+                     activation='elu', kernel_regularizer=l2(0.001)))
+
+    model.add(Conv1D(filters=int(best_params['filters_3']), kernel_size=int(best_params['kernel_size']),
+                     activation='elu', kernel_regularizer=l2(0.001)))
+
+    model.add(Conv1D(filters=int(best_params['filters_4']), kernel_size=int(best_params['kernel_size']),
+                     activation='elu', kernel_regularizer=l2(0.001)))
+
     model.add(MaxPooling1D(pool_size=POOL_SIZE))
     model.add(Flatten())
-    model.add(Dense(int(best_params['ff_dim']), activation='relu'))
-    model.add(Dropout(best_params['dropout_rate']))
+    model.add(Dense(int(best_params['ff_dim']), activation='relu', kernel_regularizer=l2(0.001)))
+    model.add(Dropout(0.5))  # Subimos dropout a 0.5 para regularizar más
     model.add(Dense(1, activation='sigmoid'))
 
     model.compile(loss='binary_crossentropy',
@@ -256,45 +293,59 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     wb = openpyxl.Workbook()
     wb.remove(wb['Sheet'])
 
+    # Crear una hoja con las especies mayoritarias por hoja
+    ws_hojas = wb.create_sheet(title="Especies Mayoritarias por Hoja")
+    ws_hojas['A1'] = 'Hoja'
+    ws_hojas['B1'] = 'Especie Mayoritaria'
+    ws_hojas['A1'].font = Font(bold=True)
+    ws_hojas['B1'].font = Font(bold=True)
+    ws_hojas['A1'].alignment = Alignment(horizontal='center')
+    ws_hojas['B1'].alignment = Alignment(horizontal='center')
+
+    # Añadir datos de especies mayoritarias por hoja
+    row = 2
     for hoja, especie in especie_mayoritaria_por_hoja.items():
-        ws = wb.create_sheet(title=str(hoja))
-        ws['A1'] = 'Hoja'
-        ws['B1'] = 'Especie Mayoritaria'
-        ws['A1'].font = Font(bold=True)
-        ws['B1'].font = Font(bold=True)
-        ws['A1'].alignment = Alignment(horizontal='center')
-        ws['B1'].alignment = Alignment(horizontal='center')
-        ws['A2'] = hoja
-        ws['B2'] = especie
-        ws['A2'].alignment = Alignment(horizontal='center')
-        ws['B2'].alignment = Alignment(horizontal='center')
-        ws.column_dimensions['A'].width = 15
-        ws.column_dimensions['B'].width = 20
+        ws_hojas[f'A{row}'] = hoja
+        ws_hojas[f'B{row}'] = especie
+        ws_hojas[f'A{row}'].alignment = Alignment(horizontal='center')
+        ws_hojas[f'B{row}'].alignment = Alignment(horizontal='center')
+        row += 1
+
+    # Crear una hoja con todas las predicciones (sin agrupación)
+    ws_predicciones = wb.create_sheet(title="Predicciones por Hoja")
+    ws_predicciones['A1'] = 'Hoja'
+    ws_predicciones['B1'] = 'Especie Predicha'
+    ws_predicciones['A1'].font = Font(bold=True)
+    ws_predicciones['B1'].font = Font(bold=True)
+    ws_predicciones['A1'].alignment = Alignment(horizontal='center')
+    ws_predicciones['B1'].alignment = Alignment(horizontal='center')
+
+    # Añadir todas las predicciones a la hoja sin agrupación
+    row = 2
+    for idx, (index, row_data) in enumerate(predicciones_por_hoja.iterrows(), start=row):
+        ws_predicciones[f'A{idx}'] = row_data['Hoja']
+        ws_predicciones[f'B{idx}'] = row_data['Especie_Predicha']
+        ws_predicciones[f'A{idx}'].alignment = Alignment(horizontal='center')
+        ws_predicciones[f'B{idx}'].alignment = Alignment(horizontal='center')
+
+    # Ajustar el ancho de las columnas
+    ws_hojas.column_dimensions['A'].width = 15
+    ws_hojas.column_dimensions['B'].width = 20
+    ws_predicciones.column_dimensions['A'].width = 15
+    ws_predicciones.column_dimensions['B'].width = 20
 
     wb.save(output_excel)
     print(f"\nArchivo Excel generado: {output_excel}")
 
 
-# Ejemplo de ejecución
 if __name__ == "__main__":
-    # Cargar los datos
-    data = pd.read_excel('../../Resultados/excel/TODOS/TODOS.xlsx')
+
+    data = pd.read_excel('../../Resultados/excel/ARBEQUINA/PicArb.xlsx')
     nuevos_datos = pd.read_excel('../../Resultados/PICUAL/Picual_4/jjj/defseefwer.xlsx')
 
-    # Verificar número de columnas
-    print(f"Número de columnas en TODOS.xlsx: {data.shape[1]}")
-    print(f"Número de columnas en defseefwer.xlsx: {nuevos_datos.shape[1]}")
+    comparar_con_pca(data.iloc[:, 3:].values, nuevos_datos.iloc[:, 3:].values)
 
-    # Ajustar el número de bandas si es necesario
-    n_bandas = min(data.shape[1] - 3, nuevos_datos.shape[1] - 3)  # Usar el menor número de bandas
-    print(f"Número de bandas a usar: {n_bandas}")
-
-    # Recortar las columnas en ambos DataFrames para usar el mismo número de bandas
-    data = data.iloc[:, :3 + n_bandas]
-    nuevos_datos = nuevos_datos.iloc[:, :3 + n_bandas]
-
-    # Ejecutar el modelo CNN
     model, scaler = ejecutar_cnn(data)
 
-    # Comprobar nuevos datos
     comprobar_nuevos_datos(model, nuevos_datos, scaler)
+
