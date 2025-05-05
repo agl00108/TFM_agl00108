@@ -18,9 +18,17 @@ import seaborn as sns
 from openpyxl.styles import Font, Alignment
 from sklearn.decomposition import PCA
 import time
+import os
+import joblib
+from tensorflow.keras.models import load_model
 
 # Cargar hiperparámetros
-with open('best_params.json', 'r') as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BEST_PARAMS_PATH = os.path.join(BASE_DIR, 'best_params.json')
+MODEL_PATH = os.path.join(BASE_DIR, 'modelo_cnn.h5')
+SCALER_PATH = os.path.join(BASE_DIR, 'scaler.pkl')
+
+with open(BEST_PARAMS_PATH, 'r') as f:
     best_params = json.load(f)
 
 # Configuraciones globales
@@ -28,7 +36,6 @@ POOL_SIZE = best_params['pool_size']
 BATCH_SIZE = best_params['batch_size']
 EPOCHS = 30
 PATIENCE = best_params['patience']
-
 
 def establecer_semilla(seed=42):
     """Establece una semilla para reproducibilidad."""
@@ -53,15 +60,14 @@ def comparar_con_pca(X_train, X_nuevos):
     X_pca = pca.fit_transform(X_total)
 
     plt.figure(figsize=(10, 6))
-    plt.scatter(X_pca[y_total == 0, 0], X_pca[y_total == 0, 1], label='Train Data', alpha=0.6)
+    plt.scatter(X_pca[y_total == 0, 0], X_pca[y_total == 0, 1], label='Datos de Entrenamiento', alpha=0.6)
     plt.scatter(X_pca[y_total == 1, 0], X_pca[y_total == 1, 1], label='Nuevos Datos', alpha=0.6)
-    plt.xlabel('PCA 1')
-    plt.ylabel('PCA 2')
-    plt.title('Comparación Train vs Nuevos Datos (PCA)')
+    plt.xlabel('Componente Principal 1')
+    plt.ylabel('Componente Principal 2')
+    plt.title('Comparación Entrenamiento vs Nuevos Datos (PCA)')
     plt.legend()
     plt.grid(True)
     plt.show()
-
 
 def preparar_datos(df, test_size=0.2, random_state=42):
     """
@@ -75,7 +81,7 @@ def preparar_datos(df, test_size=0.2, random_state=42):
     Returns:
         tuple: X_train, X_test, y_train, y_test, scaler
     """
-    # Filtrar filas donde ninguna banda (columnas 3 a 189) tenga un valor > 0.35
+    # Filtrar filas donde ninguna banda (columnas 4 a 6) tenga un valor > 0.35
     bandas = df.iloc[:, 4:7]
     filtro = (bandas <= 0.35).all(axis=1)
     df_filtrado = df[filtro].copy()
@@ -105,8 +111,9 @@ def preparar_datos(df, test_size=0.2, random_state=42):
     train_counts_smote = Counter(y_train)
     print(f'En y_train después de SMOTE, 0: {train_counts_smote[0]}, 1: {train_counts_smote[1]}')
 
-    # Inicializar scaler (normalización comentada para pruebas)
+    # Inicializar scaler
     scaler = StandardScaler()
+    # Normalización comentada para pruebas
     # X_train = scaler.fit_transform(X_train.reshape(-1, X_train.shape[1])).reshape(X_train.shape)
     # X_test = scaler.transform(X_test.reshape(-1, X_test.shape[1])).reshape(X_test.shape[0], X_test.shape[1], 1)
 
@@ -115,7 +122,6 @@ def preparar_datos(df, test_size=0.2, random_state=42):
 
     print(f"Forma de X_train: {X_train.shape}, Forma de X_test: {X_test.shape}")
     return X_train, X_test, y_train, y_test, scaler
-
 
 def crear_modelo(input_shape):
     """Crea y compila el modelo CNN."""
@@ -143,7 +149,6 @@ def crear_modelo(input_shape):
     )
     return model
 
-
 def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_prob, y_test):
     """
     Muestra métricas de evaluación del modelo.
@@ -167,17 +172,25 @@ def mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo, y_pred_pro
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", cbar=False,
                 annot_kws={"size": 16, "weight": "bold"}, linewidths=1.5, linecolor="black")
-    plt.title(f'Confusion Matrix - {nombre_modelo}', fontsize=16, weight='bold')
-    plt.xlabel('Predictions', fontsize=14, weight='bold')
-    plt.ylabel('Real Values', fontsize=14, weight='bold')
+    plt.title(f'Matriz de Confusión - {nombre_modelo}', fontsize=16, weight='bold')
+    plt.xlabel('Predicciones', fontsize=14, weight='bold')
+    plt.ylabel('Valores Reales', fontsize=14, weight='bold')
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.show()
 
+def cargar_modelo_y_scaler():
+    """Carga el modelo y el scaler si existen."""
+    if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+        model = load_model(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
+        print("Modelo y scaler cargados correctamente.")
+        return model, scaler
+    return None, None
 
 def ejecutar_cnn(df, n_splits=5):
     """
-    Ejecuta la CNN con Stratified K-fold Cross-Validation.
+    Ejecuta la CNN con Stratified K-fold Cross-Validation o carga el modelo si existe.
 
     Args:
         df (pd.DataFrame): DataFrame con los datos.
@@ -186,6 +199,12 @@ def ejecutar_cnn(df, n_splits=5):
     Returns:
         tuple: modelo final, scaler
     """
+    # Verificar si el modelo y el scaler ya están guardados
+    model, scaler = cargar_modelo_y_scaler()
+    if model is not None and scaler is not None:
+        return model, scaler
+
+    # Si no existen, entrenar el modelo
     establecer_semilla()
     start_time = time.time()
 
@@ -250,19 +269,19 @@ def ejecutar_cnn(df, n_splits=5):
         # Graficar métricas
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
-        plt.plot(history.history['accuracy'], label='Train Accuracy', color='darkblue', marker='o')
-        plt.plot(history.history['val_accuracy'], label='Test Accuracy', color='orange', marker='s')
-        plt.title(f'Training vs Test Accuracy (Fold {fold})', fontsize=14)
-        plt.xlabel('Epoch', fontsize=12)
-        plt.ylabel('Accuracy', fontsize=12)
+        plt.plot(history.history['accuracy'], label='Precisión Entrenamiento', color='darkblue', marker='o')
+        plt.plot(history.history['val_accuracy'], label='Precisión Prueba', color='orange', marker='s')
+        plt.title(f'Precisión Entrenamiento vs Prueba (Fold {fold})', fontsize=14)
+        plt.xlabel('Época', fontsize=12)
+        plt.ylabel('Precisión', fontsize=12)
         plt.legend(loc='upper left')
 
         plt.subplot(1, 2, 2)
-        plt.plot(history.history['loss'], label='Train Loss', color='crimson', linestyle='-.')
-        plt.plot(history.history['val_loss'], label='Test Loss', color='darkgreen', linestyle='--')
-        plt.title(f'Training vs Test Loss (Fold {fold})', fontsize=14)
-        plt.xlabel('Epoch', fontsize=12)
-        plt.ylabel('Loss (Binary Crossentropy)', fontsize=12)
+        plt.plot(history.history['loss'], label='Pérdida Entrenamiento', color='crimson', linestyle='-.')
+        plt.plot(history.history['val_loss'], label='Pérdida Prueba', color='darkgreen', linestyle='--')
+        plt.title(f'Pérdida Entrenamiento vs Prueba (Fold {fold})', fontsize=14)
+        plt.xlabel('Época', fontsize=12)
+        plt.ylabel('Pérdida (Entropía Cruzada Binaria)', fontsize=12)
         plt.legend(loc='upper right')
         plt.tight_layout()
         plt.show()
@@ -290,10 +309,15 @@ def ejecutar_cnn(df, n_splits=5):
         validation_data=(X_test, y_test), callbacks=[early_stopping]
     )
 
+    # Guardar el modelo y el scaler
+    model.save(MODEL_PATH)
+    joblib.dump(scaler, SCALER_PATH)
+    print(f"Modelo guardado en: {MODEL_PATH}")
+    print(f"Scaler guardado en: {SCALER_PATH}")
+
     end_time = time.time()
     print(f'Tiempo total de ejecución: {end_time - start_time:.2f} segundos')
     return model, scaler
-
 
 def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="predicciones_por_hoja.xlsx"):
     """
@@ -307,23 +331,25 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     """
     print(f"Número de columnas en el DataFrame de nuevos datos: {nuevos_datos.shape[1]}")
 
+    # Filtrar filas donde ninguna banda (columnas 4 a 6) tenga un valor > 0.35
     bandas_nuevas = nuevos_datos.iloc[:, 4:7]
     filtro_nuevas = (bandas_nuevas <= 0.35).all(axis=1)
     nuevos_datos_filtrados = nuevos_datos[filtro_nuevas].copy()
-    print(
-        f"Filas originales (nuevos datos): {len(nuevos_datos)}, Filas después de filtrar: {len(nuevos_datos_filtrados)}")
+    print(f"Filas originales (nuevos datos): {len(nuevos_datos)}, Filas después de filtrar: {len(nuevos_datos_filtrados)}")
 
     if len(nuevos_datos_filtrados) == 0:
         print("Error: No hay datos después de filtrar. Verifica los datos de entrada.")
         return
 
+    # Preparar datos para predicción
     X_nuevos = nuevos_datos_filtrados.iloc[:, 4:].values
     y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
     hojas = nuevos_datos_filtrados['Hoja'].values
 
     print(f"Forma de X_nuevos antes de reshape: {X_nuevos.shape}")
     X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1]))  # Asegurar 2D antes del escalado
-    # X_nuevos = scaler.transform(X_nuevos)  # Normalización comentada para pruebas
+    # Normalización comentada para pruebas
+    # X_nuevos = scaler.transform(X_nuevos)
     X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1], 1)).astype(np.float32)
     print(f"Forma de X_nuevos después de reshape: {X_nuevos.shape}")
     print(f"Tipo de X_nuevos: {type(X_nuevos)}, dtype: {X_nuevos.dtype}")
@@ -340,22 +366,25 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     print("\nInforme de clasificación para los nuevos datos:")
     print(classification_report(y_nuevos, y_pred))
 
+    # Generar matriz de confusión
     cm = confusion_matrix(y_nuevos, y_pred)
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", cbar=False,
                 annot_kws={"size": 16, "weight": "bold"}, linewidths=1.5, linecolor="black")
-    plt.title('Confusion Matrix - New Data')
-    plt.xlabel('Predictions')
-    plt.ylabel('Real Values')
+    plt.title('Matriz de Confusión - Nuevos Datos')
+    plt.xlabel('Predicciones')
+    plt.ylabel('Valores Reales')
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.show()
 
+    # Crear DataFrame con predicciones
     predicciones_por_hoja = pd.DataFrame({
         'Hoja': hojas,
         'Especie_Predicha': y_pred_especie
     })
 
+    # Determinar especie mayoritaria por hoja
     especie_mayoritaria_por_hoja = {}
     for hoja in predicciones_por_hoja['Hoja'].unique():
         especies_hoja = predicciones_por_hoja[predicciones_por_hoja['Hoja'] == hoja]['Especie_Predicha']
@@ -363,10 +392,11 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         especie_mayoritaria = conteo.most_common(1)[0][0]
         especie_mayoritaria_por_hoja[hoja] = especie_mayoritaria
 
+    # Crear archivo Excel
     wb = openpyxl.Workbook()
     wb.remove(wb['Sheet'])
 
-    # Crear hoja con especies mayoritarias
+    # Hoja con especies mayoritarias
     ws_hojas = wb.create_sheet(title="Especies Mayoritarias por Hoja")
     ws_hojas['A1'] = 'Hoja'
     ws_hojas['B1'] = 'Especie Mayoritaria'
@@ -383,7 +413,7 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         ws_hojas[f'B{row}'].alignment = Alignment(horizontal='center')
         row += 1
 
-    # Crear hoja con todas las predicciones
+    # Hoja con todas las predicciones
     ws_predicciones = wb.create_sheet(title="Predicciones por Hoja")
     ws_predicciones['A1'] = 'Hoja'
     ws_predicciones['B1'] = 'Especie Predicha'
@@ -407,7 +437,6 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
 
     wb.save(output_excel)
     print(f"\nArchivo Excel generado: {output_excel}")
-
 
 if __name__ == "__main__":
     data = pd.read_excel('../../Resultados/excel_2/TODOS/TODOS.xlsx')

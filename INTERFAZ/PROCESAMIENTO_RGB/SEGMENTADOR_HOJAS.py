@@ -1,13 +1,15 @@
 import cv2
 import numpy as np
-import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tensorflow.keras.models import load_model
-from VGG16 import predecir_con_modelo
+import os
+import sys
 
-# Ruta fija del modelo entrenado (ajusta esta ruta según donde tengas guardado tu modelo)
-MODELO_PATH = './modelo_vgg16.h5'
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(CURRENT_DIR)
+
+from VGG16 import predecir_con_modelo
 
 class SegmentadorHojasApp:
     def __init__(self, root):
