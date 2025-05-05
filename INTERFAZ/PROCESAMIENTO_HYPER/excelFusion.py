@@ -1,8 +1,7 @@
 import pandas as pd
 import os
 
-
-def merge_excel_files(folder_path, output_filename="PicLuc.xlsx"):
+def merge_excel_files(folder_path, output_filename="TODOS.xlsx"):
     all_dataframes = []
 
     for filename in os.listdir(folder_path):
@@ -27,8 +26,6 @@ def merge_excel_files(folder_path, output_filename="PicLuc.xlsx"):
     print(f"\nFusion completada! Archivo guardado como: {output_filename}")
     print(f"Total de filas combinadas: {len(merged_df)}")
 
-
-# Ejemplo de uso
 if __name__ == "__main__":
-    folder_path = "C:\\Users\\UJA\Desktop\programa\Resultados\excel\LUCIO"
+    folder_path = "C:\\Users\\UJA\Desktop\programa\Resultados\excel_2\TODOS"
     merge_excel_files(folder_path)

@@ -36,7 +36,6 @@ def establecer_semilla(seed=42):
     tf.random.set_seed(seed)
     random.seed(seed)
 
-
 def comparar_con_pca(X_train, X_nuevos):
     """
     Compara datos de entrenamiento y nuevos datos usando PCA.
@@ -77,13 +76,13 @@ def preparar_datos(df, test_size=0.2, random_state=42):
         tuple: X_train, X_test, y_train, y_test, scaler
     """
     # Filtrar filas donde ninguna banda (columnas 3 a 189) tenga un valor > 0.35
-    bandas = df.iloc[:, 3:190]
+    bandas = df.iloc[:, 4:7]
     filtro = (bandas <= 0.35).all(axis=1)
     df_filtrado = df[filtro].copy()
     print(f"Filas originales: {len(df)}, Filas después de filtrar: {len(df_filtrado)}")
 
     # Preparar características (X) y etiquetas (y)
-    X = df_filtrado.iloc[:, 3:].values
+    X = df_filtrado.iloc[:, 4:].values
     y = df_filtrado['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
 
     # Dividir en conjunto de entrenamiento y prueba
@@ -191,10 +190,10 @@ def ejecutar_cnn(df, n_splits=5):
     start_time = time.time()
 
     # Preparar datos para validación cruzada
-    bandas = df.iloc[:, 3:190]
+    bandas = df.iloc[:, 4:7]
     filtro = (bandas <= 0.35).all(axis=1)
     df_filtrado = df[filtro].copy()
-    X = df_filtrado.iloc[:, 3:].values
+    X = df_filtrado.iloc[:, 4:].values
     y = df_filtrado['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
     print(f"Filas originales: {len(df)}, Filas después de filtrar: {len(df_filtrado)}")
     print(f"Forma de X: {X.shape}")
@@ -308,7 +307,7 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     """
     print(f"Número de columnas en el DataFrame de nuevos datos: {nuevos_datos.shape[1]}")
 
-    bandas_nuevas = nuevos_datos.iloc[:, 3:190]
+    bandas_nuevas = nuevos_datos.iloc[:, 4:7]
     filtro_nuevas = (bandas_nuevas <= 0.35).all(axis=1)
     nuevos_datos_filtrados = nuevos_datos[filtro_nuevas].copy()
     print(
@@ -318,7 +317,7 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         print("Error: No hay datos después de filtrar. Verifica los datos de entrada.")
         return
 
-    X_nuevos = nuevos_datos_filtrados.iloc[:, 3:].values
+    X_nuevos = nuevos_datos_filtrados.iloc[:, 4:].values
     y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
     hojas = nuevos_datos_filtrados['Hoja'].values
 
@@ -411,9 +410,9 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
 
 
 if __name__ == "__main__":
-    data = pd.read_excel('../../Resultados/excel/ARBEQUINA/PicArb.xlsx')
-    nuevos_datos = pd.read_excel('../../Resultados/PICUAL/Picual_4/jjj/defseefwer.xlsx')
+    data = pd.read_excel('../../Resultados/excel_2/TODOS/TODOS.xlsx')
+    nuevos_datos = pd.read_excel('../../Resultados/PICUAL/Picual_4/3_Segmentacion_2/resultados_pic4_2.xlsx')
 
-    comparar_con_pca(data.iloc[:, 3:].values, nuevos_datos.iloc[:, 3:].values)
+    comparar_con_pca(data.iloc[:, 4:].values, nuevos_datos.iloc[:, 4:].values)
     model, scaler = ejecutar_cnn(data)
     comprobar_nuevos_datos(model, nuevos_datos, scaler)
