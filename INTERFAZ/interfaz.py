@@ -3,11 +3,12 @@ from tkinter import ttk, filedialog, messagebox
 from INTERFAZ.PROCESAMIENTO_HYPER.MASCARA_INDICE import procesar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.RECORTE_IMAGEN import recortar_imagen
 from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION_2 import procesar_shapefile_y_extraer_datos
-from INTERFAZ.PROCESAMIENTO_RGB.SEGMENTADOR_HOJAS import SegmentadorHojasApp
+from INTERFAZ.PROCESAMIENTO_RGB.SEGMENTADOR_HOJAS import SegmentadorHojas
 from PIL import Image, ImageTk
 import os
 import pandas as pd
 import joblib
+import cv2
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import comprobar_nuevos_datos, cargar_modelo_y_scaler
@@ -23,7 +24,15 @@ class InterfazApp:
         self.imagen_recortada_path = ""
         self.excel_path = ""
 
-        # Load the pre-trained model and scaler
+        # Variables para RGB
+        self.rgb_step = 0
+        self.rgb_imagen_path = ""
+        self.rgb_carpeta_salida = ""
+        self.rgb_hojas_guardadas = 0
+        self.rgb_temp_path = ""
+        self.segmentador = None
+
+        # Load the pre-trained model and scaler for hiperespectral
         self.model, self.scaler = cargar_modelo_y_scaler()
         if self.model is None or self.scaler is None:
             messagebox.showerror("Error",
@@ -31,8 +40,16 @@ class InterfazApp:
             self.root.quit()
             return
 
+        # Inicializar el segmentador de hojas para RGB
+        try:
+            self.segmentador = SegmentadorHojas()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            self.root.quit()
+            return
+
         self.container = tk.Frame(root, bg="#2E4A3D")  # Fondo verde oscuro
-        self.container.pack(padx=10, pady=10)
+        self.container.pack(padx=10, pady=10, expand=True, fill="both")
 
         self.mostrar_paso_0()
 
@@ -47,6 +64,10 @@ class InterfazApp:
             return filedialog.askdirectory()
         elif tipo == "excel":
             return filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Archivos Excel", "*.xlsx")])
+        elif tipo == "jpg":
+            return filedialog.askopenfilename(filetypes=[("Archivos JPG", "*.jpg")])
+        elif tipo == "save_jpg":
+            return filedialog.asksaveasfilename(defaultextension=".jpg", filetypes=[("JPEG files", "*.jpg")])
 
     def mostrar_paso_0(self):
         self.limpiar_contenedor()
@@ -92,10 +113,10 @@ class InterfazApp:
         try:
             image_path = r"C:\Users\UJA\Desktop\programa\INTERFAZ\imagenFondo.png"
             img = Image.open(image_path)
-            img = img.resize((300, 400), Image.Resampling.LANCZOS)  # Ajusta el tamaño según necesites
+            img = img.resize((300, 400), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img)
             image_label = tk.Label(right_frame, image=photo, bg="white")
-            image_label.image = photo  # Mantener una referencia para evitar que se borre
+            image_label.image = photo
             image_label.pack(expand=True)
         except Exception as e:
             tk.Label(right_frame, text="Error al cargar la imagen", bg="white", font=("Helvetica", 10, "italic")).pack(
@@ -106,8 +127,206 @@ class InterfazApp:
         self.mostrar_paso_1()
 
     def iniciar_procesamiento_rgb(self):
+        self.rgb_step = 1
+        self.rgb_imagen_path = ""
+        self.rgb_carpeta_salida = ""
+        self.rgb_hojas_guardadas = 0
+        self.rgb_temp_path = ""
+        self.mostrar_paso_rgb_1()
+
+    def mostrar_paso_rgb_1(self):
         self.limpiar_contenedor()
-        SegmentadorHojasApp(self.root)
+
+        # Cuadro blanco que engloba todo
+        main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
+        main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        # Títulos
+        tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"), bg="white", justify="center").pack(pady=10)
+        tk.Label(main_frame, text="Paso 1: Elección de Imagen", font=("Helvetica", 12), bg="white", justify="center").pack(pady=5)
+
+        # Frame para los campos
+        input_frame = tk.Frame(main_frame, bg="white")
+        input_frame.pack(padx=20, pady=10, fill="x")
+
+        # Campo para seleccionar imagen RGB
+        tk.Label(input_frame, text="Seleccionar imagen RGB (.jpg):", bg="white").grid(row=0, column=0, pady=5, sticky="e")
+        self.rgb_imagen_entry = ttk.Entry(input_frame, width=50)
+        self.rgb_imagen_entry.grid(row=0, column=1, pady=5)
+        tk.Button(input_frame, text="Buscar", command=self.seleccionar_imagen_rgb, bg="#d5f5e3", relief="groove", bd=2).grid(row=0, column=2, pady=5)
+
+        # Campo para carpeta de salida
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white").grid(row=1, column=0, pady=5, sticky="e")
+        self.rgb_salida_entry = ttk.Entry(input_frame, width=50)
+        self.rgb_salida_entry.grid(row=1, column=1, pady=5)
+        tk.Button(input_frame, text="Buscar", command=self.seleccionar_salida_rgb, bg="#d5f5e3", relief="groove", bd=2).grid(row=1, column=2, pady=5)
+
+        # Campo para número inicial
+        tk.Label(input_frame, text="N° inicial: (Por si hubiera más imágenes)", bg="white").grid(row=2, column=0, pady=5, sticky="e")
+        self.rgb_inicio_entry = ttk.Entry(input_frame, width=10)
+        self.rgb_inicio_entry.grid(row=2, column=1, pady=5, sticky="w")
+        self.rgb_inicio_entry.insert(0, "1")
+
+        # Sección de previsualización
+        tk.Label(input_frame, text="Previsualización:", bg="white").grid(row=3, column=0, columnspan=3, pady=5)
+        self.rgb_preview_frame = tk.Frame(input_frame, bg="white")
+        self.rgb_preview_frame.grid(row=4, column=0, columnspan=3, pady=5)
+        self.rgb_preview_label = tk.Label(self.rgb_preview_frame, bg="white")
+        self.rgb_preview_label.pack(expand=True)
+
+        # Botón Procesar
+        self.rgb_procesar_btn = tk.Button(main_frame, text="Procesar", command=self.procesar_rgb_paso_1, bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_procesar_btn.pack(pady=20)
+
+    def mostrar_paso_rgb_2(self):
+        self.limpiar_contenedor()
+
+        # Cuadro blanco que engloba todo
+        main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
+        main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        # Títulos
+        tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"), bg="white",
+                 justify="center").pack(pady=10)
+        tk.Label(main_frame, text="Paso 2: Resultados de Segmentación", font=("Helvetica", 12), bg="white",
+                 justify="center").pack(pady=5)
+
+        # Frame para los resultados
+        result_frame = tk.Frame(main_frame, bg="white")
+        result_frame.pack(padx=20, pady=10, fill="x")
+
+        # Mostrar información
+        tk.Label(result_frame, text=f"Imagen procesada: {self.rgb_imagen_path}", bg="white", wraplength=500).pack(
+            pady=5)
+        tk.Label(result_frame, text=f"Se han guardado {self.rgb_hojas_guardadas} hojas en: {self.rgb_carpeta_salida}",
+                 bg="white", wraplength=500).pack(pady=5)
+
+        # Sección de previsualización para los resultados
+        tk.Label(result_frame, text="Previsualización de resultados:", bg="white").pack(pady=5)
+        self.rgb_preview_frame = tk.Frame(result_frame, bg="white")
+        self.rgb_preview_frame.pack(pady=5)
+        self.rgb_preview_label = tk.Label(self.rgb_preview_frame, bg="white")  # Inicializar aquí
+        self.rgb_preview_label.pack(expand=True)
+
+        # Botón para predecir variedades
+        self.rgb_predecir_btn = tk.Button(main_frame, text="Predecir Variedad", command=self.predecir_rgb_variedades,
+                                          bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_predecir_btn.pack(pady=10)
+
+        # Botón para descargar (inicialmente oculto)
+        self.rgb_descargar_btn = tk.Button(main_frame, text="Descargar Imagen", command=self.descargar_rgb_imagen,
+                                           bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_descargar_btn.pack(pady=5)
+        self.rgb_descargar_btn.pack_forget()
+
+        # Botón para volver a la pantalla principal
+        tk.Button(main_frame, text="Volver al Inicio", command=self.volver_al_inicio_rgb, bg="#d5f5e3", relief="groove",
+                  bd=2).pack(pady=10)
+
+        # Si ya se ha predicho, mostrar la previsualización de la imagen anotada
+        if self.rgb_temp_path:
+            self.mostrar_previsualizacion_rgb_resultados()
+
+    def seleccionar_imagen_rgb(self):
+        ruta = self.seleccionar_archivo("jpg")
+        if ruta:
+            self.rgb_imagen_entry.delete(0, tk.END)
+            self.rgb_imagen_entry.insert(0, ruta)
+            self.mostrar_previsualizacion_rgb(ruta)
+
+    def seleccionar_salida_rgb(self):
+        ruta = self.seleccionar_archivo("dir")
+        if ruta:
+            self.rgb_salida_entry.delete(0, tk.END)
+            self.rgb_salida_entry.insert(0, ruta)
+
+    def mostrar_previsualizacion_rgb(self, ruta):
+        try:
+            img = Image.open(ruta)
+            img = img.resize((300, 200), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(img)
+            self.rgb_preview_label.configure(image=photo)
+            self.rgb_preview_label.image = photo
+        except Exception as e:
+            self.rgb_preview_label.configure(text="Error al cargar la previsualización")
+
+    def mostrar_previsualizacion_rgb_resultados(self):
+        if not hasattr(self, 'rgb_preview_label'):
+            return  # Si no existe el label, no hacemos nada
+
+        if self.rgb_temp_path and os.path.exists(self.rgb_temp_path):
+            try:
+                img = Image.open(self.rgb_temp_path)
+                img = img.resize((300, 200), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self.rgb_preview_label.configure(image=photo)
+                self.rgb_preview_label.image = photo
+                # Asegurarse de que el botón de descarga aparezca
+                if hasattr(self, 'rgb_descargar_btn'):
+                    self.rgb_descargar_btn.pack()
+            except Exception as e:
+                self.rgb_preview_label.configure(text=f"Error al cargar la previsualización: {str(e)}")
+
+    def procesar_rgb_paso_1(self):
+        self.rgb_imagen_path = self.rgb_imagen_entry.get()
+        self.rgb_carpeta_salida = self.rgb_salida_entry.get()
+        try:
+            inicio_num = int(self.rgb_inicio_entry.get())
+        except ValueError:
+            messagebox.showerror("Error", "El número inicial debe ser un entero válido.")
+            return
+
+        if not self.rgb_imagen_path or not self.rgb_carpeta_salida:
+            messagebox.showerror("Error", "Debe seleccionar la imagen y la carpeta de salida.")
+            return
+
+        try:
+            self.rgb_hojas_guardadas = self.segmentador.procesar_hojas(self.rgb_imagen_path, self.rgb_carpeta_salida, inicio_num)
+            self.rgb_step = 2
+            self.mostrar_paso_rgb_2()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def predecir_rgb_variedades(self):
+        try:
+            self.rgb_temp_path = self.segmentador.predecir_variedades()
+            # Verificar que la ruta temporal se haya establecido
+            if not self.rgb_temp_path or not os.path.exists(self.rgb_temp_path):
+                raise Exception("No se pudo generar la imagen anotada temporal.")
+
+            # Leer la imagen reescalada
+            imagen = cv2.imread(self.rgb_temp_path)
+            if imagen is None:
+                raise Exception("No se pudo cargar la imagen anotada para mostrar.")
+
+            # Configurar la ventana con un tamaño fijo
+            cv2.namedWindow("Hojas Anotadas", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Hojas Anotadas", 800, 600)  # Tamaño fijo de la ventana (800x600 píxeles)
+            cv2.imshow("Hojas Anotadas", imagen)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+            # Mostrar la previsualización y activar el botón de descarga
+            self.mostrar_previsualizacion_rgb_resultados()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def descargar_rgb_imagen(self):
+        ruta_guardado = self.seleccionar_archivo("save_jpg")
+        if ruta_guardado:
+            try:
+                self.segmentador.descargar_imagen(ruta_guardado)
+                messagebox.showinfo("Éxito", f"Imagen descargada en: {ruta_guardado}")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+    def volver_al_inicio_rgb(self):
+        self.rgb_step = 0
+        self.rgb_imagen_path = ""
+        self.rgb_carpeta_salida = ""
+        self.rgb_hojas_guardadas = 0
+        self.rgb_temp_path = ""
+        self.mostrar_paso_0()
 
     def mostrar_paso_1(self):
         self.limpiar_contenedor()
