@@ -6,9 +6,12 @@ from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION_2 import procesar_shapefile_y_ext
 from INTERFAZ.PROCESAMIENTO_RGB.SEGMENTADOR_HOJAS import SegmentadorHojasApp
 import os
 import pandas as pd
+from tensorflow.keras.models import load_model
+import joblib
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import comprobar_nuevos_datos
+from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import comprobar_nuevos_datos, cargar_modelo_y_scaler
+
 
 class InterfazApp:
     def __init__(self, root):
@@ -19,6 +22,14 @@ class InterfazApp:
         self.shapefile_path = ""
         self.imagen_recortada_path = ""
         self.excel_path = ""
+
+        # Load the pre-trained model and scaler
+        self.model, self.scaler = cargar_modelo_y_scaler()
+        if self.model is None or self.scaler is None:
+            messagebox.showerror("Error",
+                                 "No se pudieron cargar el modelo o el scaler. Verifica los archivos modelo_cnn.h5 y scaler.pkl.")
+            self.root.quit()
+            return
 
         self.container = ttk.Frame(root)
         self.container.pack(padx=10, pady=10)
@@ -39,9 +50,14 @@ class InterfazApp:
 
     def mostrar_paso_0(self):
         self.limpiar_contenedor()
-        ttk.Label(self.container, text="Seleccione el tipo de procesamiento:").grid(row=0, column=0, columnspan=2, pady=10)
-        ttk.Button(self.container, text="Procesamiento Hiperespectral", command=self.iniciar_procesamiento_hiperespectral).grid(row=1, column=0, padx=5, pady=5)
-        ttk.Button(self.container, text="Procesamiento RGB", command=self.iniciar_procesamiento_rgb).grid(row=1, column=1, padx=5, pady=5)
+        ttk.Label(self.container, text="Seleccione el tipo de procesamiento:").grid(row=0, column=0, columnspan=2,
+                                                                                    pady=10)
+        ttk.Button(self.container, text="Procesamiento Hiperespectral",
+                   command=self.iniciar_procesamiento_hiperespectral).grid(row=1, column=0, padx=5, pady=5)
+        ttk.Button(self.container, text="Procesamiento RGB", command=self.iniciar_procesamiento_rgb).grid(row=1,
+                                                                                                          column=1,
+                                                                                                          padx=5,
+                                                                                                          pady=5)
 
     def iniciar_procesamiento_hiperespectral(self):
         self.step = 1
@@ -53,25 +69,35 @@ class InterfazApp:
 
     def mostrar_paso_1(self):
         self.limpiar_contenedor()
-        ttk.Label(self.container, text="Paso 1: Generar Máscara de Vegetación").grid(row=0, column=0, columnspan=3, pady=5)
+        ttk.Label(self.container, text="Paso 1: Generar Máscara de Vegetación").grid(row=0, column=0, columnspan=3,
+                                                                                     pady=5)
         ttk.Label(self.container, text="Imagen hiperespectral (.hdr):").grid(row=1, column=0, pady=5)
         self.imagen_entry = ttk.Entry(self.container, width=50)
         self.imagen_entry.grid(row=1, column=1, pady=5)
-        ttk.Button(self.container, text="Seleccionar", command=lambda: self.imagen_entry.insert(0, self.seleccionar_archivo("hdr"))).grid(row=1, column=2, pady=5)
+        ttk.Button(self.container, text="Seleccionar",
+                   command=lambda: self.imagen_entry.insert(0, self.seleccionar_archivo("hdr"))).grid(row=1, column=2,
+                                                                                                      pady=5)
         ttk.Label(self.container, text="Carpeta de exportación:").grid(row=2, column=0, pady=5)
         self.exportacion_entry = ttk.Entry(self.container, width=50)
         self.exportacion_entry.grid(row=2, column=1, pady=5)
-        ttk.Button(self.container, text="Seleccionar", command=lambda: self.exportacion_entry.insert(0, self.seleccionar_archivo("dir"))).grid(row=2, column=2, pady=5)
+        ttk.Button(self.container, text="Seleccionar",
+                   command=lambda: self.exportacion_entry.insert(0, self.seleccionar_archivo("dir"))).grid(row=2,
+                                                                                                           column=2,
+                                                                                                           pady=5)
         ttk.Label(self.container, text="Nombre del archivo (sin extensión):").grid(row=3, column=0, pady=5)
         self.nombre_entry = ttk.Entry(self.container, width=50)
         self.nombre_entry.grid(row=3, column=1, pady=5)
         self.var_raster = tk.BooleanVar()
         self.var_vector = tk.BooleanVar(value=True)
-        ttk.Checkbutton(self.container, text="Exportar como raster (.tiff)", variable=self.var_raster).grid(row=4, column=0, pady=5)
-        ttk.Checkbutton(self.container, text="Exportar como vectorial (.shp)", variable=self.var_vector, state="disabled").grid(row=4, column=1, pady=5)
+        ttk.Checkbutton(self.container, text="Exportar como raster (.tiff)", variable=self.var_raster).grid(row=4,
+                                                                                                            column=0,
+                                                                                                            pady=5)
+        ttk.Checkbutton(self.container, text="Exportar como vectorial (.shp)", variable=self.var_vector,
+                        state="disabled").grid(row=4, column=1, pady=5)
         self.info_label_1 = ttk.Label(self.container, text="Esperando procesamiento...")
         self.info_label_1.grid(row=5, column=0, columnspan=3, pady=5)
-        ttk.Button(self.container, text="Siguiente", command=self.procesar_paso_1).grid(row=6, column=0, columnspan=3, pady=10)
+        ttk.Button(self.container, text="Siguiente", command=self.procesar_paso_1).grid(row=6, column=0, columnspan=3,
+                                                                                        pady=10)
 
     def procesar_paso_1(self):
         self.imagen_hdr = self.imagen_entry.get()
@@ -101,14 +127,18 @@ class InterfazApp:
         self.limpiar_contenedor()
         ttk.Label(self.container, text="Paso 2: Recorte de Imagen").grid(row=0, column=0, columnspan=3, pady=5)
         ttk.Label(self.container, text=f"Usando imagen: {self.imagen_hdr}").grid(row=1, column=0, columnspan=3, pady=5)
-        ttk.Label(self.container, text=f"Usando shapefile: {self.shapefile_path}").grid(row=2, column=0, columnspan=3, pady=5)
+        ttk.Label(self.container, text=f"Usando shapefile: {self.shapefile_path}").grid(row=2, column=0, columnspan=3,
+                                                                                        pady=5)
         ttk.Label(self.container, text="Carpeta para guardar imagen recortada:").grid(row=3, column=0, pady=5)
         self.recorte_entry = ttk.Entry(self.container, width=50)
         self.recorte_entry.grid(row=3, column=1, pady=5)
-        ttk.Button(self.container, text="Seleccionar", command=lambda: self.recorte_entry.insert(0, self.seleccionar_archivo("dir"))).grid(row=3, column=2, pady=5)
+        ttk.Button(self.container, text="Seleccionar",
+                   command=lambda: self.recorte_entry.insert(0, self.seleccionar_archivo("dir"))).grid(row=3, column=2,
+                                                                                                       pady=5)
         self.info_label_2 = ttk.Label(self.container, text="Esperando procesamiento...")
         self.info_label_2.grid(row=4, column=0, columnspan=3, pady=5)
-        ttk.Button(self.container, text="Siguiente", command=self.procesar_paso_2).grid(row=5, column=0, columnspan=3, pady=10)
+        ttk.Button(self.container, text="Siguiente", command=self.procesar_paso_2).grid(row=5, column=0, columnspan=3,
+                                                                                        pady=10)
 
     def procesar_paso_2(self):
         recorte_dir = self.recorte_entry.get()
@@ -134,9 +164,13 @@ class InterfazApp:
 
     def mostrar_paso_3(self):
         self.limpiar_contenedor()
-        ttk.Label(self.container, text="Paso 3: Análisis Espectral").grid(row=0, column=0, columnspan=3, pady=5)
-        ttk.Label(self.container, text=f"Usando imagen recortada: {self.imagen_recortada_path}").grid(row=1, column=0, columnspan=3, pady=5)
-        ttk.Label(self.container, text=f"Usando shapefile: {self.shapefile_path}").grid(row=2, column=0, columnspan=3, pady=5)
+        ttk.Label(self.container, text="Paso 3: Análisis Espectral y Predicción").grid(row=0, column=0, columnspan=3,
+                                                                                       pady=5)
+        ttk.Label(self.container, text=f"Usando imagen recortada: {self.imagen_recortada_path}").grid(row=1, column=0,
+                                                                                                      columnspan=3,
+                                                                                                      pady=5)
+        ttk.Label(self.container, text=f"Usando shapefile: {self.shapefile_path}").grid(row=2, column=0, columnspan=3,
+                                                                                        pady=5)
         ttk.Label(self.container, text="Divisiones por cuadrícula:").grid(row=3, column=0, pady=5)
         self.divisiones_entry = ttk.Entry(self.container, width=50)
         self.divisiones_entry.grid(row=3, column=1, pady=5)
@@ -146,10 +180,13 @@ class InterfazApp:
         ttk.Label(self.container, text="Ruta para guardar archivo Excel:").grid(row=5, column=0, pady=5)
         self.excel_entry = ttk.Entry(self.container, width=50)
         self.excel_entry.grid(row=5, column=1, pady=5)
-        ttk.Button(self.container, text="Seleccionar", command=lambda: self.excel_entry.insert(0, self.seleccionar_archivo("excel"))).grid(row=5, column=2, pady=5)
+        ttk.Button(self.container, text="Seleccionar",
+                   command=lambda: self.excel_entry.insert(0, self.seleccionar_archivo("excel"))).grid(row=5, column=2,
+                                                                                                       pady=5)
         self.info_label_3 = ttk.Label(self.container, text="Esperando procesamiento...")
         self.info_label_3.grid(row=6, column=0, columnspan=3, pady=5)
-        ttk.Button(self.container, text="Finalizar", command=self.procesar_paso_3).grid(row=7, column=0, columnspan=3, pady=10)
+        ttk.Button(self.container, text="Finalizar", command=self.procesar_paso_3).grid(row=7, column=0, columnspan=3,
+                                                                                        pady=10)
 
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
@@ -171,8 +208,13 @@ class InterfazApp:
         self.info_label_3.config(text="Procesando análisis espectral...")
         self.root.update_idletasks()
         try:
-            procesar_shapefile_y_extraer_datos(self.shapefile_path, self.imagen_recortada_path, divisiones, self.excel_path,
-                                               especie=especie if especie else None)
+            procesar_shapefile_y_extraer_datos(
+                self.shapefile_path,
+                self.imagen_recortada_path,
+                divisiones,
+                self.excel_path,
+                especie=especie if especie else None
+            )
         except Exception as e:
             messagebox.showerror("Error", f"Error al realizar el análisis espectral: {str(e)}")
             self.info_label_3.config(text="Error al realizar el análisis espectral.")
@@ -184,10 +226,9 @@ class InterfazApp:
             self.root.update_idletasks()
             try:
                 data = pd.read_excel(self.excel_path)
-                resultados = comprobar_nuevos_datos(data)
-                resultados_path = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
-                resultados.to_excel(resultados_path, index=False)
-                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {resultados_path}")
+                output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
+                comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
+                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {output_excel}")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
                 self.info_label_3.config(text="Error al realizar la predicción.")
@@ -206,6 +247,7 @@ class InterfazApp:
         else:
             messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
             self.info_label_3.config(text="Error: No se encontró el archivo Excel.")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
