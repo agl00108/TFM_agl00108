@@ -7,7 +7,6 @@ from INTERFAZ.PROCESAMIENTO_RGB.SEGMENTADOR_HOJAS import SegmentadorHojasApp
 from PIL import Image, ImageTk
 import os
 import pandas as pd
-from tensorflow.keras.models import load_model
 import joblib
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -17,7 +16,7 @@ from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import comprobar_nuevos_datos, ca
 class InterfazApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Procesador de Imágenes")
+        self.root.title("TFM Alba Gómez")
         self.step = 0
         self.imagen_hdr = ""
         self.shapefile_path = ""
@@ -32,7 +31,7 @@ class InterfazApp:
             self.root.quit()
             return
 
-        self.container = ttk.Frame(root)
+        self.container = tk.Frame(root, bg="#2E4A3D")  # Fondo verde oscuro
         self.container.pack(padx=10, pady=10)
 
         self.mostrar_paso_0()
@@ -76,18 +75,18 @@ class InterfazApp:
         tk.Label(left_frame,
                  text="Segmentación de hojas a partir de imagen hiperespectral (formato .hdr y .dat) y posterior predicción mediante IA.\n"
                       "Genera archivo shapefile con las hojas, archivo hiperespectral con el recorte y un Excel con los resultados.",
-                 wraplength=400, justify="left", bg="white").pack(pady=5)
+                 wraplength=400, justify="center", bg="white").pack(pady=5)
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_hiperespectral,
-                  bg="#A9CBA4", font=("Helvetica", 10), relief="groove", bd=2).pack(pady=10, fill="x")
+                  bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
 
         # Sección Procesamiento RGB
         tk.Label(left_frame, text="Procesamiento RGB", bg="#A9CBA4", font=("Helvetica", 12, "bold"),
                  relief="groove", bd=2, pady=5, padx=10).pack(fill="x", pady=5)
         tk.Label(left_frame, text="Segmentación de hojas a partir de imagen JPG y posterior predicción mediante IA.\n"
                                   "Genera otra imagen con los resultados.",
-                 wraplength=400, justify="left", bg="white").pack(pady=5)
+                 wraplength=400, justify="center", bg="white").pack(pady=5)
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_rgb,
-                  bg="#A9CBA4", font=("Helvetica", 10), relief="groove", bd=2).pack(pady=10, fill="x")
+                  bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
 
         # Imagen
         try:
@@ -101,7 +100,6 @@ class InterfazApp:
         except Exception as e:
             tk.Label(right_frame, text="Error al cargar la imagen", bg="white", font=("Helvetica", 10, "italic")).pack(
                 expand=True)
-
 
     def iniciar_procesamiento_hiperespectral(self):
         self.step = 1
