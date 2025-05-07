@@ -117,17 +117,16 @@ class InterfazApp:
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_rgb,
                   bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
 
-        # Imagen (ajustada para cargar correctamente)
+        # Imagen
         try:
             image_path = r"C:\Users\UJA\Desktop\programa\INTERFAZ\imagenFondo.png"
             img = Image.open(image_path)
-            # Usar dimensiones fijas iniciales para evitar problemas de sincronización
-            new_width = 200  # Ancho fijo inicial
-            new_height = 300  # Alto fijo inicial
+            new_width = 200
+            new_height = 300
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img)
             image_label = tk.Label(right_frame, image=photo, bg="white")
-            image_label.image = photo  # Guardar referencia para evitar que el recolector de basura elimine la imagen
+            image_label.image = photo
             image_label.pack(expand=True, fill="both", padx=10, pady=10)
 
             # Función para actualizar el tamaño de la imagen cuando el frame se redimensione
@@ -135,13 +134,13 @@ class InterfazApp:
                 try:
                     frame_width = event.width
                     frame_height = event.height
-                    if frame_width <= 40 or frame_height <= 40:  # Evitar redimensionar si el tamaño es demasiado pequeño
+                    if frame_width <= 40 or frame_height <= 40:
                         return
                     img_resized = Image.open(image_path)
                     img_ratio = img_resized.width / img_resized.height
-                    new_width = min(frame_width - 40, int((frame_height - 40) * img_ratio))  # Restar padding
+                    new_width = min(frame_width - 40, int((frame_height - 40) * img_ratio))
                     new_height = int(new_width / img_ratio)
-                    if new_width > 0 and new_height > 0:  # Asegurarse de que las dimensiones sean válidas
+                    if new_width > 0 and new_height > 0:
                         img_resized = img_resized.resize((new_width, new_height), Image.Resampling.LANCZOS)
                         new_photo = ImageTk.PhotoImage(img_resized)
                         image_label.configure(image=new_photo)
@@ -149,7 +148,6 @@ class InterfazApp:
                 except Exception as e:
                     print(f"Error al redimensionar la imagen: {str(e)}")
 
-            # Vincular la función de redimensionamiento al evento de cambio de tamaño del right_frame
             right_frame.bind("<Configure>", resize_image)
 
         except Exception as e:
