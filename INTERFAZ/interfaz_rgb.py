@@ -42,24 +42,24 @@ class InterfazRGB:
         input_frame = tk.Frame(main_frame, bg="white")
         input_frame.pack(padx=20, pady=10, expand=True, fill="both")
 
-        tk.Label(input_frame, text="Seleccionar imagen RGB (.jpg):", bg="white").grid(row=0, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Seleccionar imagen RGB (.jpg):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, pady=5, sticky="e")
         self.rgb_imagen_entry = ttk.Entry(input_frame, width=50)
         self.rgb_imagen_entry.grid(row=0, column=1, pady=5, sticky="ew")
         tk.Button(input_frame, text="Buscar", command=self.seleccionar_imagen_rgb, bg="#d5f5e3", relief="groove", bd=2).grid(row=0, column=2, pady=5)
 
-        tk.Label(input_frame, text="Carpeta de salida:", bg="white").grid(row=1, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0, pady=5, sticky="e")
         self.rgb_salida_entry = ttk.Entry(input_frame, width=50)
         self.rgb_salida_entry.grid(row=1, column=1, pady=5, sticky="ew")
         tk.Button(input_frame, text="Buscar", command=self.seleccionar_salida_rgb, bg="#d5f5e3", relief="groove", bd=2).grid(row=1, column=2, pady=5)
 
-        tk.Label(input_frame, text="N° inicial: (Por si hubiera más imágenes)", bg="white").grid(row=2, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="N° inicial:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
         self.rgb_inicio_entry = ttk.Entry(input_frame, width=10)
         self.rgb_inicio_entry.grid(row=2, column=1, pady=5, sticky="w")
         self.rgb_inicio_entry.insert(0, "1")
 
         input_frame.grid_columnconfigure(1, weight=1)
 
-        tk.Label(input_frame, text="Previsualización:", bg="white").grid(row=3, column=0, columnspan=3, pady=5)
+        tk.Label(input_frame, text="Previsualización:", bg="white", font=("Helvetica", 10, "bold")).grid(row=3, column=0, columnspan=3, pady=5)
         self.rgb_preview_frame = tk.Frame(input_frame, bg="white")
         self.rgb_preview_frame.grid(row=4, column=0, columnspan=3, pady=5, sticky="nsew")
         self.rgb_preview_label = tk.Label(self.rgb_preview_frame, bg="white")
@@ -82,10 +82,10 @@ class InterfazRGB:
         result_frame = tk.Frame(main_frame, bg="white")
         result_frame.pack(padx=20, pady=10, expand=True, fill="both")
 
-        tk.Label(result_frame, text=f"Imagen procesada: {self.rgb_imagen_path}", bg="white", wraplength=500).pack(pady=5)
+        tk.Label(result_frame, text=f"Imagen procesada: {self.rgb_imagen_path}", bg="white", font=("Helvetica", 10, "bold"), wraplength=500).pack(pady=5)
         tk.Label(result_frame, text=f"Se han guardado {self.rgb_hojas_guardadas} hojas en: {self.rgb_carpeta_salida}", bg="white", wraplength=500).pack(pady=5)
 
-        tk.Label(result_frame, text="Previsualización de resultados:", bg="white").pack(pady=5)
+        tk.Label(result_frame, text="Previsualización de resultados:", bg="white", font=("Helvetica", 10, "bold")).pack(pady=5)
         self.rgb_preview_frame = tk.Frame(result_frame, bg="white")
         self.rgb_preview_frame.pack(pady=5, expand=True, fill="both")
         self.rgb_preview_label = tk.Label(self.rgb_preview_frame, bg="white")

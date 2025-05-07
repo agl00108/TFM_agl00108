@@ -7,11 +7,29 @@ from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import cargar_modelo_y_scaler, co
 import os
 import pandas as pd
 
+
+def seleccionar_archivo(tipo):
+    if tipo == "hdr":
+        return filedialog.askopenfilename(filetypes=[("Archivos .hdr", "*.hdr")])
+    elif tipo == "dir":
+        return filedialog.askdirectory()
+    elif tipo == "excel":
+        return filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Archivos Excel", "*.xlsx")])
+
+
 class InterfazHyper:
     def __init__(self, container, root, volver_inicio_callback):
+        self.next_button = None
+        self.var_vector = None
+        self.var_raster = None
+        self.nombre_entry = None
+        self.exportacion_entry = None
+        self.imagen_entry = None
+        self.subtitle_label = None
+        self.title_label = None
         self.container = container
         self.root = root
-        self.volver_inicio_callback = volver_inicio_callback  # Callback para volver al inicio
+        self.volver_inicio_callback = volver_inicio_callback
         self.step = 1
         self.imagen_hdr = ""
         self.shapefile_path = ""
@@ -25,14 +43,6 @@ class InterfazHyper:
         for widget in self.container.winfo_children():
             widget.destroy()
 
-    def seleccionar_archivo(self, tipo):
-        if tipo == "hdr":
-            return filedialog.askopenfilename(filetypes=[("Archivos .hdr", "*.hdr")])
-        elif tipo == "dir":
-            return filedialog.askdirectory()
-        elif tipo == "excel":
-            return filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Archivos Excel", "*.xlsx")])
-
     def mostrar_paso_1(self):
         self.limpiar_contenedor()
 
@@ -41,40 +51,48 @@ class InterfazHyper:
 
         self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
                                     bg="white", justify="center")
-        self.title_label.pack(pady=10, fill="x")
+        self.title_label.pack(pady=(10,2), fill="x")
 
-        self.subtitle_label = tk.Label(main_frame, text="Paso 1: Generar Máscara de Vegetación", font=("Helvetica", 12),
-                                       bg="white", justify="center")
-        self.subtitle_label.pack(pady=5, fill="x")
+        self.subtitle_label = tk.Label(main_frame, text="Paso 1: Generar Máscara de Vegetación", font=("Helvetica", 10),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0,5), fill="x")
 
         input_frame = tk.Frame(main_frame, bg="white")
         input_frame.pack(padx=20, pady=10, expand=True, fill="both")
 
-        tk.Label(input_frame, text="Seleccionar imagen (.hdr):", bg="white").grid(row=0, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Seleccionar imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, pady=5, sticky="e")
         self.imagen_entry = ttk.Entry(input_frame, width=50)
         self.imagen_entry.grid(row=0, column=1, pady=5, sticky="ew")
-        ttk.Button(input_frame, text="Buscar", command=lambda: self.imagen_entry.insert(0, self.seleccionar_archivo("hdr")), bg="#d5f5e3", relief="groove", bd=2).grid(row=0, column=2, pady=5, padx=5)
+        tk.Button(input_frame, text="Buscar", command=lambda: self.imagen_entry.insert(0, seleccionar_archivo("hdr")),
+                  bg="#d5f5e3", relief="groove", bd=2).grid(row=0, column=2, pady=5)
 
-        tk.Label(input_frame, text="Carpeta de salida:", bg="white").grid(row=1, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0, pady=5, sticky="e")
         self.exportacion_entry = ttk.Entry(input_frame, width=50)
         self.exportacion_entry.grid(row=1, column=1, pady=5, sticky="ew")
-        ttk.Button(input_frame, text="Buscar", command=lambda: self.exportacion_entry.insert(0, self.seleccionar_archivo("dir")), bg="#d5f5e3", relief="groove", bd=2).grid(row=1, column=2, pady=5, padx=5)
+        tk.Button(input_frame, text="Buscar", command=lambda: self.exportacion_entry.insert(0, seleccionar_archivo("dir")),
+                  bg="#d5f5e3", relief="groove", bd=2).grid(row=1, column=2, pady=5)
 
-        tk.Label(input_frame, text="Nombre exportación: (sin extensión)", bg="white").grid(row=2, column=0, pady=5, sticky="e")
-        self.nombre_entry = ttk.Entry(input_frame, width=50)
+        tk.Label(input_frame, text="Nombre exportación (sin extensión):", bg="white", font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
+        self.nombre_entry = ttk.Entry(input_frame, width=30)
         self.nombre_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
 
         self.var_raster = tk.BooleanVar()
         self.var_vector = tk.BooleanVar(value=True)
-        ttk.Checkbutton(input_frame, text="Exportar como ráster (.tiff)", variable=self.var_raster).grid(row=3, column=0, columnspan=3, pady=5, sticky="w")
-        ttk.Checkbutton(input_frame, text="Exportar como vectorial (.shp)", variable=self.var_vector, state="disabled").grid(row=4, column=0, columnspan=3, pady=5, sticky="w")
+
+        check_frame = tk.Frame(input_frame, bg="white")
+        check_frame.grid(row=3, column=1, columnspan=2, pady=5, sticky="w")
+        tk.Checkbutton(check_frame, text="Exportar como ráster (.tiff)", variable=self.var_raster,
+                       bg="white", activebackground="white", anchor="w", fg="#2E4A3D").pack(anchor="w")
+        tk.Checkbutton(check_frame, text="Exportar como vectorial (.shp)", variable=self.var_vector,
+                       bg="white", activebackground="white", anchor="w", state="disabled").pack(anchor="w")
 
         for i in range(3):
             input_frame.grid_columnconfigure(i, weight=1)
-        input_frame.grid_rowconfigure(5, weight=1)
+        input_frame.grid_rowconfigure(4, weight=1)
 
-        self.next_button = tk.Button(main_frame, text="Siguiente", command=self.procesar_paso_1, bg="#A9CBA4", relief="groove", bd=2)
-        self.next_button.pack(pady=20, fill="x", padx=10)
+        self.next_button = tk.Button(main_frame, text="Siguiente", command=self.procesar_paso_1,
+                                     bg="#d5f5e3", relief="groove", bd=2)
+        self.next_button.pack(pady=20)  # Sin fill="x" ni padx para no ocupar todo el ancho
 
         def resize_elements(event):
             try:
@@ -82,10 +100,8 @@ class InterfazHyper:
                 if main_width > 40:
                     new_font_size_title = max(14, int(main_width / 50))
                     new_font_size_subtitle = max(12, int(main_width / 60))
-                    new_font_size_button = max(10, int(main_width / 70))
                     self.title_label.config(font=("Helvetica", new_font_size_title, "bold"))
                     self.subtitle_label.config(font=("Helvetica", new_font_size_subtitle))
-                    self.next_button.config(font=("Helvetica", new_font_size_button))
             except Exception as e:
                 print(f"Error al redimensionar elementos: {str(e)}")
 
@@ -116,16 +132,55 @@ class InterfazHyper:
         main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
         main_frame.pack(padx=20, pady=20, expand=True, fill="both")
 
-        ttk.Label(main_frame, text="Paso 2: Recorte de Imagen").pack(pady=5)
-        ttk.Label(main_frame, text=f"Usando imagen: {self.imagen_hdr}").pack(pady=5)
-        ttk.Label(main_frame, text=f"Usando shapefile: {self.shapefile_path}").pack(pady=5)
-        ttk.Label(main_frame, text="Carpeta para guardar imagen recortada:").pack(anchor="w", padx=10)
-        self.recorte_entry = ttk.Entry(main_frame, width=50)
-        self.recorte_entry.pack(fill="x", padx=10, pady=5)
-        ttk.Button(main_frame, text="Seleccionar", command=lambda: self.recorte_entry.insert(0, self.seleccionar_archivo("dir"))).pack(pady=5)
-        self.info_label_2 = ttk.Label(main_frame, text="Esperando procesamiento...")
-        self.info_label_2.pack(pady=5)
-        ttk.Button(main_frame, text="Siguiente", command=self.procesar_paso_2).pack(pady=10)
+        self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
+                                    bg="white", justify="center")
+        self.title_label.pack(pady=(10, 2), fill="x")
+
+        self.subtitle_label = tk.Label(main_frame, text="Paso 2: Recorte de Imagen", font=("Helvetica", 10),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0, 10), fill="x")
+
+        input_frame = tk.Frame(main_frame, bg="white")
+        input_frame.pack(padx=20, pady=10, expand=True, fill="both")
+
+        # Variables de texto para mostrar rutas
+        imagen_var = tk.StringVar(value=self.imagen_hdr)
+        shapefile_var = tk.StringVar(value=self.shapefile_path)
+
+        tk.Label(input_frame, text="Imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, pady=5, sticky="e")
+        tk.Entry(input_frame, textvariable=imagen_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0, pady=5, sticky="e")
+        tk.Entry(input_frame, textvariable=shapefile_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=1, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
+        self.recorte_entry = ttk.Entry(input_frame)
+        self.recorte_entry.grid(row=2, column=1, pady=5, sticky="ew")
+        tk.Button(input_frame, text="Seleccionar",
+                  command=lambda: self.recorte_entry.insert(0, seleccionar_archivo("dir")),
+                  bg="#d5f5e3", relief="groove", bd=2).grid(row=2, column=2, pady=5, padx=(5, 0))
+
+        input_frame.grid_columnconfigure(1, weight=1)
+        input_frame.grid_columnconfigure(2, weight=0)
+
+        self.next_button = tk.Button(main_frame, text="Siguiente", command=self.procesar_paso_2,
+                                     bg="#d5f5e3", relief="groove", bd=2)
+        self.next_button.pack(pady=20)
+
+        def resize_elements(event):
+            try:
+                main_width = main_frame.winfo_width()
+                if main_width > 40:
+                    new_font_size_title = max(14, int(main_width / 50))
+                    new_font_size_subtitle = max(12, int(main_width / 60))
+                    self.title_label.config(font=("Helvetica", new_font_size_title, "bold"))
+                    self.subtitle_label.config(font=("Helvetica", new_font_size_subtitle))
+            except Exception as e:
+                print(f"Error al redimensionar elementos: {str(e)}")
+
+        main_frame.bind("<Configure>", resize_elements)
 
     def procesar_paso_2(self):
         recorte_dir = self.recorte_entry.get()
@@ -162,10 +217,12 @@ class InterfazHyper:
         ttk.Label(main_frame, text="Ruta para guardar archivo Excel:").pack(anchor="w", padx=10)
         self.excel_entry = ttk.Entry(main_frame, width=50)
         self.excel_entry.pack(fill="x", padx=10, pady=5)
-        ttk.Button(main_frame, text="Seleccionar", command=lambda: self.excel_entry.insert(0, self.seleccionar_archivo("excel"))).pack(pady=5)
+        tk.Button(main_frame, text="Seleccionar", command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
+                  bg="#d5f5e3", relief="groove", bd=2).pack(pady=5)
         self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
         self.info_label_3.pack(pady=5)
-        ttk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3).pack(pady=10)
+        tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
+                  bg="#d5f5e3", relief="groove", bd=2).pack(pady=10)
 
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
@@ -211,7 +268,7 @@ class InterfazHyper:
 
             respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
             if respuesta:
-                self.volver_inicio_callback()  # Llamar al callback para volver al inicio
+                self.volver_inicio_callback()
             else:
                 self.root.quit()
         else:
