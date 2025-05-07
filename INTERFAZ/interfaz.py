@@ -33,8 +33,8 @@ class InterfazApp:
         self.segmentador = None
 
         # Configurar tamaño inicial cuadrado y permitir redimensionamiento
-        self.root.geometry("600x600")  # Tamaño inicial 600x600 píxeles
-        self.root.resizable(True, True)  # Permitir redimensionamiento
+        self.root.geometry("900x600")
+        self.root.resizable(True, True)
 
         # Load the pre-trained model and scaler for hiperespectral
         self.model, self.scaler = cargar_modelo_y_scaler()
@@ -76,24 +76,28 @@ class InterfazApp:
     def mostrar_paso_0(self):
         self.limpiar_contenedor()
 
-        # Cuadro blanco que engloba todo
+        # Frame superior para el título
+        title_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
+        title_frame.pack(fill="x", padx=20, pady=(20, 0))  # Ocupa todo el ancho, con padding superior
+
+        # Título principal
+        tk.Label(title_frame,
+                 text="Caracterización Geométrica y Espectral para la Clasificación\nde Variedades de Olivar utilizando Aprendizaje Automático",
+                 font=("Helvetica", 14, "bold"), bg="white", justify="center", wraplength=600).pack(fill="x", pady=10)
+
+        # Cuadro blanco que engloba el resto (left_frame y right_frame)
         main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
-        main_frame.pack(padx=20, pady=20, expand=True, fill="both")
+        main_frame.pack(padx=20, pady=(0, 20), expand=True, fill="both")  # Padding ajustado
 
         # Frame izquierdo para los textos y botones
         left_frame = tk.Frame(main_frame, bg="white")
-        left_frame.pack(side="left", padx=20, pady=20, fill="y", expand=True)
+        left_frame.pack(side="left", padx=40, pady=20, fill="y", expand=True)
 
         # Frame derecho para la imagen
         right_frame = tk.Frame(main_frame, bg="white")
         right_frame.pack(side="right", padx=20, pady=20, fill="both", expand=True)
 
         # Contenido del frame izquierdo
-        # Título principal
-        tk.Label(left_frame,
-                 text="Caracterización Geométrica y Espectral para la Clasificación\nde Variedades de Olivar utilizando Aprendizaje Automático",
-                 font=("Helvetica", 14, "bold"), bg="white", justify="center", wraplength=300).pack(pady=20)
-
         # Sección Procesamiento Hiperespectral
         tk.Label(left_frame, text="Procesamiento Hiperespectral", bg="#A9CBA4", font=("Helvetica", 12, "bold"),
                  relief="groove", bd=2, pady=5, padx=10).pack(fill="x", pady=5)
@@ -113,19 +117,45 @@ class InterfazApp:
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_rgb,
                   bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
 
-        # Imagen
+        # Imagen (ajustada para cargar correctamente)
         try:
             image_path = r"C:\Users\UJA\Desktop\programa\INTERFAZ\imagenFondo.png"
             img = Image.open(image_path)
-            # Ajustar tamaño proporcional al frame
-            img = img.resize((200, 300), Image.Resampling.LANCZOS)  # Ajustado para mantener proporción
+            # Usar dimensiones fijas iniciales para evitar problemas de sincronización
+            new_width = 200  # Ancho fijo inicial
+            new_height = 300  # Alto fijo inicial
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img)
             image_label = tk.Label(right_frame, image=photo, bg="white")
-            image_label.image = photo
-            image_label.pack(expand=True, fill="both")
+            image_label.image = photo  # Guardar referencia para evitar que el recolector de basura elimine la imagen
+            image_label.pack(expand=True, fill="both", padx=10, pady=10)
+
+            # Función para actualizar el tamaño de la imagen cuando el frame se redimensione
+            def resize_image(event):
+                try:
+                    frame_width = event.width
+                    frame_height = event.height
+                    if frame_width <= 40 or frame_height <= 40:  # Evitar redimensionar si el tamaño es demasiado pequeño
+                        return
+                    img_resized = Image.open(image_path)
+                    img_ratio = img_resized.width / img_resized.height
+                    new_width = min(frame_width - 40, int((frame_height - 40) * img_ratio))  # Restar padding
+                    new_height = int(new_width / img_ratio)
+                    if new_width > 0 and new_height > 0:  # Asegurarse de que las dimensiones sean válidas
+                        img_resized = img_resized.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                        new_photo = ImageTk.PhotoImage(img_resized)
+                        image_label.configure(image=new_photo)
+                        image_label.image = new_photo  # Actualizar referencia
+                except Exception as e:
+                    print(f"Error al redimensionar la imagen: {str(e)}")
+
+            # Vincular la función de redimensionamiento al evento de cambio de tamaño del right_frame
+            right_frame.bind("<Configure>", resize_image)
+
         except Exception as e:
-            tk.Label(right_frame, text="Error al cargar la imagen", bg="white", font=("Helvetica", 10, "italic")).pack(
-                expand=True, fill="both")
+            tk.Label(right_frame, text=f"Error al cargar la imagen: {str(e)}", bg="white",
+                     font=("Helvetica", 10, "italic")).pack(
+                expand=True, fill="both", padx=10, pady=10)
 
     def iniciar_procesamiento_hiperespectral(self):
         self.step = 1
