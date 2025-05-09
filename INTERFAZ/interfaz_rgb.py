@@ -6,6 +6,8 @@ import os
 
 class InterfazRGB:
     def __init__(self, container, root, volver_inicio_callback):
+        self.subtitle_label = None
+        self.title_label = None
         self.container = container
         self.root = root
         self.volver_inicio_callback = volver_inicio_callback  # Callback para volver al inicio
@@ -36,8 +38,13 @@ class InterfazRGB:
         main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
         main_frame.pack(padx=20, pady=20, expand=True, fill="both")
 
-        tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"), bg="white", justify="center").pack(pady=10)
-        tk.Label(main_frame, text="Paso 1: Elección de Imagen", font=("Helvetica", 12), bg="white", justify="center").pack(pady=5)
+        self.title_label = tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"),
+                                    bg="white", justify="center")
+        self.title_label.pack(pady=(10,2), fill="x")
+
+        self.subtitle_label = tk.Label(main_frame, text="Paso 1: Elección de Imagen", font=("Helvetica", 10, "bold"),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0,5), fill="x")
 
         input_frame = tk.Frame(main_frame, bg="white")
         input_frame.pack(padx=20, pady=10, expand=True, fill="both")
@@ -79,8 +86,13 @@ class InterfazRGB:
         main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
         main_frame.pack(padx=20, pady=20, expand=True, fill="both")
 
-        tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"), bg="white", justify="center").pack(pady=10)
-        tk.Label(main_frame, text="Paso 2: Resultados de Segmentación", font=("Helvetica", 12), bg="white", justify="center").pack(pady=5)
+        self.title_label = tk.Label(main_frame, text="Procesamiento RGB", font=("Helvetica", 14, "bold"),
+                                    bg="white", justify="center")
+        self.title_label.pack(pady=(10, 2), fill="x")
+
+        self.subtitle_label = tk.Label(main_frame, text="Paso 2: Resultados de Segmentación", font=("Helvetica", 10, "bold"),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0, 5), fill="x")
 
         result_frame = tk.Frame(main_frame, bg="white")
         result_frame.pack(padx=20, pady=10, expand=True, fill="both")
@@ -97,16 +109,21 @@ class InterfazRGB:
         self.rgb_predecir_btn = tk.Button(main_frame, text="Predecir Variedad", command=self.predecir_rgb_variedades, bg="#d5f5e3", relief="groove", bd=2)
         self.rgb_predecir_btn.pack(pady=10)
 
-        self.rgb_descargar_btn = tk.Button(main_frame, text="Descargar Imagen", command=self.descargar_rgb_imagen, bg="#d5f5e3", relief="groove", bd=2)
-        self.rgb_descargar_btn.pack(pady=5)
-        self.rgb_descargar_btn.pack_forget()
+        button_frame = tk.Frame(main_frame, bg=main_frame.cget("bg"))
+        button_frame.pack(pady=10)
 
-        self.rgb_volver_btn = tk.Button(main_frame, text="Atrás", command=self.volver_al_paso_1,
+        self.rgb_volver_btn = tk.Button(button_frame, text="Atrás", command=self.volver_al_paso_1,
                                         bg="#d5f5e3", relief="groove", bd=2)
-        self.rgb_volver_btn.pack(pady=10)
+        self.rgb_volver_btn.pack(side="left", padx=10)
 
-        self.rgb_volver_btn = tk.Button(main_frame, text="Pantalla Inicial", command=self.volver_al_inicio_rgb, bg="#d5f5e3", relief="groove", bd=2)
-        self.rgb_volver_btn.pack(pady=10)
+        self.rgb_descargar_btn = tk.Button(button_frame, text="Descargar Imagen",
+                                           command=self.descargar_rgb_imagen, bg="#d5f5e3",
+                                           relief="groove", bd=2)
+
+        self.rgb_inicio_btn = tk.Button(button_frame, text="Pantalla Inicial",
+                                        command=self.volver_al_inicio_rgb, bg="#d5f5e3",
+                                        relief="groove", bd=2)
+        self.rgb_inicio_btn.pack(side="left", padx=10)
 
         if self.rgb_temp_path:
             self.mostrar_previsualizacion_rgb_resultados()
@@ -161,8 +178,9 @@ class InterfazRGB:
                                                    fg="blue", font=("Helvetica", 8, "italic"))
                     self.agrandar_label.pack(pady=5)
                 self.rgb_preview_label.bind("<Button-1>", self.mostrar_imagen_grande)
-                if hasattr(self, 'rgb_descargar_btn'):
-                    self.rgb_descargar_btn.pack()
+                # Empaquetar el botón de descargar si existe y no está empaquetado
+                if hasattr(self, 'rgb_descargar_btn') and not self.rgb_descargar_btn.winfo_ismapped():
+                    self.rgb_descargar_btn.pack(side="left", padx=10)
             except Exception as e:
                 self.rgb_preview_label.configure(text=f"Error al cargar la previsualización: {str(e)}")
 
