@@ -51,28 +51,36 @@ class InterfazHyper:
 
         self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
                                     bg="white", justify="center")
-        self.title_label.pack(pady=(10,2), fill="x")
+        self.title_label.pack(pady=(10, 2), fill="x")
 
         self.subtitle_label = tk.Label(main_frame, text="Paso 1: Generar Máscara de Vegetación", font=("Helvetica", 10),
                                        bg="white", justify="center", fg="#2E4A3D")
-        self.subtitle_label.pack(pady=(0,5), fill="x")
+        self.subtitle_label.pack(pady=(0, 5), fill="x")
 
         input_frame = tk.Frame(main_frame, bg="white")
         input_frame.pack(padx=20, pady=10, expand=True, fill="both")
 
-        tk.Label(input_frame, text="Seleccionar imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Seleccionar imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0,
+                                                                                                                  column=0,
+                                                                                                                  pady=5,
+                                                                                                                  sticky="e")
         self.imagen_entry = ttk.Entry(input_frame, width=50)
         self.imagen_entry.grid(row=0, column=1, pady=5, sticky="ew")
         tk.Button(input_frame, text="Buscar", command=lambda: self.imagen_entry.insert(0, seleccionar_archivo("hdr")),
                   bg="#d5f5e3", relief="groove", bd=2).grid(row=0, column=2, pady=5)
 
-        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1,
+                                                                                                          column=0,
+                                                                                                          pady=5,
+                                                                                                          sticky="e")
         self.exportacion_entry = ttk.Entry(input_frame, width=50)
         self.exportacion_entry.grid(row=1, column=1, pady=5, sticky="ew")
-        tk.Button(input_frame, text="Buscar", command=lambda: self.exportacion_entry.insert(0, seleccionar_archivo("dir")),
+        tk.Button(input_frame, text="Buscar",
+                  command=lambda: self.exportacion_entry.insert(0, seleccionar_archivo("dir")),
                   bg="#d5f5e3", relief="groove", bd=2).grid(row=1, column=2, pady=5)
 
-        tk.Label(input_frame, text="Nombre exportación (sin extensión):", bg="white", font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Nombre exportación (sin extensión):", bg="white",
+                 font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
         self.nombre_entry = ttk.Entry(input_frame, width=30)
         self.nombre_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
 
@@ -147,15 +155,21 @@ class InterfazHyper:
         imagen_var = tk.StringVar(value=self.imagen_hdr)
         shapefile_var = tk.StringVar(value=self.shapefile_path)
 
-        tk.Label(input_frame, text="Imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Imagen (.hdr):", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0,
+                                                                                                      pady=5,
+                                                                                                      sticky="e")
         tk.Entry(input_frame, textvariable=imagen_var, state="readonly", relief="flat", bg="white",
                  fg="#2E4A3D", font=("Helvetica", 9)).grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
 
-        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0,
+                                                                                                  pady=5, sticky="e")
         tk.Entry(input_frame, textvariable=shapefile_var, state="readonly", relief="flat", bg="white",
                  fg="#2E4A3D", font=("Helvetica", 9)).grid(row=1, column=1, columnspan=2, sticky="ew", pady=5)
 
-        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2, column=0, pady=5, sticky="e")
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2,
+                                                                                                          column=0,
+                                                                                                          pady=5,
+                                                                                                          sticky="e")
         self.recorte_entry = ttk.Entry(input_frame)
         self.recorte_entry.grid(row=2, column=1, pady=5, sticky="ew")
         tk.Button(input_frame, text="Seleccionar",
@@ -258,6 +272,9 @@ class InterfazHyper:
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
 
+        self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
+        self.info_label_3.pack(pady=5)
+
         self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
                                      bg="#d5f5e3", relief="groove", bd=2)
         self.next_button.pack(pady=20)
@@ -312,6 +329,24 @@ class InterfazHyper:
                 data = pd.read_excel(self.excel_path)
                 output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
                 comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
+
+                # Leer el Excel generado para contar especies
+                predicciones_df = pd.read_excel(output_excel, sheet_name="Predicciones por Hoja")
+                conteo_especies = predicciones_df['Especie Predicha'].value_counts()
+                total_pic = conteo_especies.get('PIC', 0)
+                total_no_pic = conteo_especies.get('No PIC', 0)
+
+                # Determinar especie mayoritaria
+                especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
+
+                # Mostrar resultados en pantalla
+                resultado_texto = (
+                    f"La especie predicha es: {especie_mayoritaria}\n"
+                    f"Hay {total_pic} casos de Picual y {total_no_pic} casos de No Picual\n"
+                    f"Archivo Excel generado en: {output_excel}"
+                )
+                self.info_label_3.config(text=resultado_texto)
+
                 messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {output_excel}")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
