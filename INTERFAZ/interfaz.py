@@ -47,7 +47,7 @@ class InterfazApp:
                       "Genera archivo shapefile con las hojas, archivo hiperespectral con el recorte y un Excel con los resultados.",
                  wraplength=300, justify="center", bg="white").pack(pady=5)
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_hiperespectral,
-                  bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
+                  bg="#d5f5e3", font=("Helvetica", 9, "bold"), relief="groove", bd=2, width=25).pack(pady=10)
 
         tk.Label(left_frame, text="Procesamiento RGB", bg="#A9CBA4", font=("Helvetica", 12, "bold"),
                  relief="groove", bd=2, pady=5, padx=10).pack(fill="x", pady=5)
@@ -55,7 +55,7 @@ class InterfazApp:
                                   "Genera otra imagen con los resultados.",
                  wraplength=300, justify="center", bg="white").pack(pady=5)
         tk.Button(left_frame, text="Iniciar Procesamiento", command=self.iniciar_procesamiento_rgb,
-                  bg="#d5f5e3", font=("Helvetica", 10), relief="groove", bd=2, width=25).pack(pady=10)
+                  bg="#d5f5e3", font=("Helvetica", 9, "bold"), relief="groove", bd=2, width=25).pack(pady=10)
 
         try:
             image_path = r"C:\Users\UJA\Desktop\programa\INTERFAZ\imagenFondo.png"

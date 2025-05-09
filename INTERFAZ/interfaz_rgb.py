@@ -70,6 +70,9 @@ class InterfazRGB:
         self.rgb_procesar_btn = tk.Button(main_frame, text="Procesar", command=self.procesar_rgb_paso_1, bg="#d5f5e3", relief="groove", bd=2)
         self.rgb_procesar_btn.pack(pady=20)
 
+        self.rgb_volver_inicio_btn = tk.Button(main_frame, text="Volver", command=self.volver_al_inicio_rgb, bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_volver_inicio_btn.pack(pady=5)
+
     def mostrar_paso_rgb_2(self):
         self.limpiar_contenedor()
 
@@ -98,7 +101,11 @@ class InterfazRGB:
         self.rgb_descargar_btn.pack(pady=5)
         self.rgb_descargar_btn.pack_forget()
 
-        self.rgb_volver_btn = tk.Button(main_frame, text="Volver al Inicio", command=self.volver_al_inicio_rgb, bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_volver_btn = tk.Button(main_frame, text="Atrás", command=self.volver_al_paso_1,
+                                        bg="#d5f5e3", relief="groove", bd=2)
+        self.rgb_volver_btn.pack(pady=10)
+
+        self.rgb_volver_btn = tk.Button(main_frame, text="Pantalla Inicial", command=self.volver_al_inicio_rgb, bg="#d5f5e3", relief="groove", bd=2)
         self.rgb_volver_btn.pack(pady=10)
 
         if self.rgb_temp_path:
@@ -122,14 +129,17 @@ class InterfazRGB:
             img = Image.open(ruta)
             frame_width = self.rgb_preview_frame.winfo_width()
             frame_height = self.rgb_preview_frame.winfo_height()
-            if frame_width <= 1 or frame_height <= 1:
-                frame_width, frame_height = 300, 200
-            img = img.resize((frame_width - 10, frame_height - 10), Image.Resampling.LANCZOS)
+
+            if frame_width > 1 and frame_height > 1:
+                img.thumbnail((frame_width - 10, frame_height - 10), Image.Resampling.LANCZOS)
+
             photo = ImageTk.PhotoImage(img)
             self.rgb_preview_label.configure(image=photo)
             self.rgb_preview_label.image = photo
+            self.rgb_preview_label.config(width=img.width, height=img.height)
         except Exception as e:
             self.rgb_preview_label.configure(text="Error al cargar la previsualización")
+            print(f"Error al cargar la imagen: {e}")
 
     def mostrar_previsualizacion_rgb_resultados(self):
         if not hasattr(self, 'rgb_preview_label'):
@@ -141,12 +151,15 @@ class InterfazRGB:
                 img = Image.open(self.rgb_temp_path)
                 frame_width = self.rgb_preview_frame.winfo_width()
                 frame_height = self.rgb_preview_frame.winfo_height()
-                if frame_width <= 1 or frame_height <= 1:
-                    frame_width, frame_height = 300, 200
-                img = img.resize((frame_width - 10, frame_height - 10), Image.Resampling.LANCZOS)
+                if frame_width > 1 and frame_height > 1:
+                    img.thumbnail((frame_width, frame_height), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 self.rgb_preview_label.configure(image=photo)
                 self.rgb_preview_label.image = photo
+                if not hasattr(self, 'agrandar_label'):
+                    self.agrandar_label = tk.Label(self.rgb_preview_frame, text="Click para agrandar", bg="white",
+                                                   fg="blue", font=("Helvetica", 8, "italic"))
+                    self.agrandar_label.pack(pady=5)
                 self.rgb_preview_label.bind("<Button-1>", self.mostrar_imagen_grande)
                 if hasattr(self, 'rgb_descargar_btn'):
                     self.rgb_descargar_btn.pack()
@@ -212,5 +225,9 @@ class InterfazRGB:
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
+    def volver_al_paso_1(self):
+        self.rgb_step = 1
+        self.mostrar_paso_rgb_1()
+
     def volver_al_inicio_rgb(self):
-        self.volver_inicio_callback()  # Llamar al callback para volver al inicio
+        self.volver_inicio_callback()
