@@ -205,24 +205,75 @@ class InterfazHyper:
         main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
         main_frame.pack(padx=20, pady=20, expand=True, fill="both")
 
-        ttk.Label(main_frame, text="Paso 3: Análisis Espectral y Predicción").pack(pady=5)
-        ttk.Label(main_frame, text=f"Usando imagen recortada: {self.imagen_recortada_path}").pack(pady=5)
-        ttk.Label(main_frame, text=f"Usando shapefile: {self.shapefile_path}").pack(pady=5)
-        ttk.Label(main_frame, text="Divisiones por cuadrícula:").pack(anchor="w", padx=10)
-        self.divisiones_entry = ttk.Entry(main_frame, width=50)
-        self.divisiones_entry.pack(fill="x", padx=10, pady=5)
-        ttk.Label(main_frame, text="Especie (opcional):").pack(anchor="w", padx=10)
-        self.especie_entry = ttk.Entry(main_frame, width=50)
-        self.especie_entry.pack(fill="x", padx=10, pady=5)
-        ttk.Label(main_frame, text="Ruta para guardar archivo Excel:").pack(anchor="w", padx=10)
-        self.excel_entry = ttk.Entry(main_frame, width=50)
-        self.excel_entry.pack(fill="x", padx=10, pady=5)
-        tk.Button(main_frame, text="Seleccionar", command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
-                  bg="#d5f5e3", relief="groove", bd=2).pack(pady=5)
-        self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
-        self.info_label_3.pack(pady=5)
-        tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
-                  bg="#d5f5e3", relief="groove", bd=2).pack(pady=10)
+        self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
+                                    bg="white", justify="center")
+        self.title_label.pack(pady=(10, 2), fill="x")
+
+        self.subtitle_label = tk.Label(main_frame, text="Paso 3: Análisis Espectral y Predicción",
+                                       font=("Helvetica", 10),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0, 10), fill="x")
+
+        input_frame = tk.Frame(main_frame, bg="white")
+        input_frame.pack(padx=20, pady=10, expand=True, fill="both")
+
+        # Variables de texto para mostrar rutas
+        imagen_var = tk.StringVar(value=self.imagen_recortada_path)
+        shapefile_var = tk.StringVar(value=self.shapefile_path)
+
+        tk.Label(input_frame, text="Imagen recortada:", bg="white", font=("Helvetica", 10, "bold")).grid(row=0,
+                                                                                                         column=0,
+                                                                                                         pady=5,
+                                                                                                         sticky="e")
+        tk.Entry(input_frame, textvariable=imagen_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0,
+                                                                                                  pady=5, sticky="e")
+        tk.Entry(input_frame, textvariable=shapefile_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=1, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Divisiones por cuadrícula:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2,
+                                                                                                                  column=0,
+                                                                                                                  pady=5,
+                                                                                                                  sticky="e")
+        self.divisiones_entry = ttk.Entry(input_frame, width=50)
+        self.divisiones_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
+
+        tk.Label(input_frame, text="Especie (opcional):", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
+                                                                                                           column=0,
+                                                                                                           pady=5,
+                                                                                                           sticky="e")
+        self.especie_entry = ttk.Entry(input_frame, width=50)
+        self.especie_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
+
+        tk.Label(input_frame, text="Ruta para guardar archivo Excel:", bg="white", font=("Helvetica", 10, "bold")).grid(
+            row=4, column=0, pady=5, sticky="e")
+        self.excel_entry = ttk.Entry(input_frame, width=50)
+        self.excel_entry.grid(row=4, column=1, pady=5, sticky="ew")
+        tk.Button(input_frame, text="Seleccionar",
+                  command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
+                  bg="#d5f5e3", relief="groove", bd=2).grid(row=4, column=2, pady=5, padx=(5, 0))
+
+        input_frame.grid_columnconfigure(1, weight=1)
+        input_frame.grid_columnconfigure(2, weight=0)
+
+        self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
+                                     bg="#d5f5e3", relief="groove", bd=2)
+        self.next_button.pack(pady=20)
+
+        def resize_elements(event):
+            try:
+                main_width = main_frame.winfo_width()
+                if main_width > 40:
+                    new_font_size_title = max(14, int(main_width / 50))
+                    new_font_size_subtitle = max(12, int(main_width / 60))
+                    self.title_label.config(font=("Helvetica", new_font_size_title, "bold"))
+                    self.subtitle_label.config(font=("Helvetica", new_font_size_subtitle))
+            except Exception as e:
+                print(f"Error al redimensionar elementos: {str(e)}")
+
+        main_frame.bind("<Configure>", resize_elements)
 
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
