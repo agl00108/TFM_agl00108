@@ -9,7 +9,6 @@ import os
 # Configura el número máximo de núcleos (si es necesario)
 os.environ["LOKY_MAX_CPU_COUNT"] = "8"
 
-
 # Función para generar puntos en una cuadrícula regular dentro de un polígono
 def generar_puntos_cuadricula(poligono, num_divisiones):
     """

@@ -151,7 +151,6 @@ class InterfazHyper:
         input_frame = tk.Frame(main_frame, bg="white")
         input_frame.pack(padx=20, pady=10, expand=True, fill="both")
 
-        # Variables de texto para mostrar rutas
         imagen_var = tk.StringVar(value=self.imagen_hdr)
         shapefile_var = tk.StringVar(value=self.shapefile_path)
 
@@ -176,8 +175,25 @@ class InterfazHyper:
                   command=lambda: self.recorte_entry.insert(0, seleccionar_archivo("dir")),
                   bg="#d5f5e3", relief="groove", bd=2).grid(row=2, column=2, pady=5, padx=(5, 0))
 
+        tk.Label(input_frame, text="Nombre del archivo de salida (sin extensión):", bg="white",
+                 font=("Helvetica", 10, "bold")).grid(row=3, column=0, pady=5, sticky="e")
+        self.recorte_nombre_entry = ttk.Entry(input_frame, width=30)
+        self.recorte_nombre_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
+
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
+
+        # Create progress bar and status label, initially hidden
+        style = ttk.Style()
+        style.configure("Green.Horizontal.TProgressbar", troughcolor="white", background="#2E4A3D")
+        self.progress_bar = ttk.Progressbar(main_frame, mode="indeterminate", length=300,
+                                            style="Green.Horizontal.TProgressbar")
+        self.progress_bar.pack(pady=5)
+        self.status_label = ttk.Label(main_frame, text="Ejecutando recorte...", font=("Helvetica", 10),
+                                      background="white", foreground="#2E4A3D", relief="flat")
+        self.status_label.pack(pady=5)
+        self.progress_bar.pack_forget()
+        self.status_label.pack_forget()
 
         self.next_button = tk.Button(main_frame, text="Siguiente", command=self.procesar_paso_2,
                                      bg="#d5f5e3", relief="groove", bd=2)
@@ -197,21 +213,198 @@ class InterfazHyper:
         main_frame.bind("<Configure>", resize_elements)
 
     def procesar_paso_2(self):
+        import threading
+
         recorte_dir = self.recorte_entry.get()
-        if not recorte_dir:
-            messagebox.showerror("Error", "Seleccione la carpeta para guardar la imagen recortada.")
+        recorte_nombre = self.recorte_nombre_entry.get()
+        if not recorte_dir or not recorte_nombre:
+            messagebox.showerror("Error", "Seleccione la carpeta y el nombre para guardar la imagen recortada.")
             return
+
+        self.next_button.config(state="disabled")
+        self.progress_bar.pack(pady=5)
+        self.status_label.pack(pady=5)
+        self.progress_bar.start()
+        self.root.update_idletasks()
+
+        def run_recorte():
+            try:
+                recortar_imagen(self.shapefile_path, self.imagen_hdr, recorte_dir, output_filename=recorte_nombre)
+                self.root.after(0, self._complete_recorte)
+            except Exception as e:
+                self.root.after(0, lambda: self._error_recorte(str(e)))
+
+        def thread_task():
+            thread = threading.Thread(target=run_recorte)
+            thread.daemon = True
+            thread.start()
+
+        self._complete_recorte = lambda: (
+            self.progress_bar.stop(),
+            self.progress_bar.pack_forget(),
+            self.status_label.pack_forget(),
+            self.next_button.config(state="normal"),
+            setattr(self, 'imagen_recortada_path',
+                    os.path.normpath(os.path.join(recorte_dir, recorte_nombre + ".dat"))),
+            messagebox.showerror("Error", "No se pudo generar la imagen recortada.") if not os.path.exists(
+                self.imagen_recortada_path) else (
+                setattr(self, 'step', 3),
+                self.mostrar_paso_3()
+            )
+        )
+
+        self._error_recorte = lambda error: (
+            self.progress_bar.stop(),
+            self.progress_bar.pack_forget(),
+            self.status_label.pack_forget(),
+            self.next_button.config(state="normal"),
+            messagebox.showerror("Error", f"Error al recortar la imagen: {error}")
+        )
+
+        thread_task()
+
+    def mostrar_paso_3(self):
+        self.limpiar_contenedor()
+
+        main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
+        main_frame.pack(padx=20, pady=20, expand=True, fill="both")
+
+        self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
+                                    bg="white", justify="center")
+        self.title_label.pack(pady=(10, 2), fill="x")
+
+        self.subtitle_label = tk.Label(main_frame, text="Paso 3: Análisis Espectral y Predicción",
+                                       font=("Helvetica", 10),
+                                       bg="white", justify="center", fg="#2E4A3D")
+        self.subtitle_label.pack(pady=(0, 10), fill="x")
+
+        input_frame = tk.Frame(main_frame, bg="white")
+        input_frame.pack(padx=20, pady=10, expand=True, fill="both")
+
+        imagen_var = tk.StringVar(value=self.imagen_recortada_path)
+        shapefile_var = tk.StringVar(value=self.shapefile_path)
+
+        tk.Label(input_frame, text="Imagen recortada:", bg="white", font=("Helvetica", 10, "bold")).grid(row=0,
+                                                                                                         column=0,
+                                                                                                         pady=5,
+                                                                                                         sticky="e")
+        tk.Entry(input_frame, textvariable=imagen_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0,
+                                                                                                  pady=5, sticky="e")
+        tk.Entry(input_frame, textvariable=shapefile_var, state="readonly", relief="flat", bg="white",
+                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=1, column=1, columnspan=2, sticky="ew", pady=5)
+
+        tk.Label(input_frame, text="Divisiones por cuadrícula:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2,
+                                                                                                                  column=0,
+                                                                                                                  pady=5,
+                                                                                                                  sticky="e")
+        self.divisiones_entry = ttk.Entry(input_frame, width=50)
+        self.divisiones_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
+
+        tk.Label(input_frame, text="Especie (opcional):", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
+                                                                                                           column=0,
+                                                                                                           pady=5,
+                                                                                                           sticky="e")
+        self.especie_entry = ttk.Entry(input_frame, width=50)
+        self.especie_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
+
+        tk.Label(input_frame, text="Ruta para guardar archivo Excel:", bg="white", font=("Helvetica", 10, "bold")).grid(
+            row=4, column=0, pady=5, sticky="e")
+        self.excel_entry = ttk.Entry(input_frame, width=50)
+        self.excel_entry.grid(row=4, column=1, pady=5, sticky="ew")
+        tk.Button(input_frame, text="Seleccionar",
+                  command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
+                  bg="#d5f5e3", relief="groove", bd=2).grid(row=4, column=2, pady=5, padx=(5, 0))
+
+        input_frame.grid_columnconfigure(1, weight=1)
+        input_frame.grid_columnconfigure(2, weight=0)
+
+        self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
+        self.info_label_3.pack(pady=5)
+
+        self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
+                                     bg="#d5f5e3", relief="groove", bd=2)
+        self.next_button.pack(pady=20)
+
+        def resize_elements(event):
+            try:
+                main_width = main_frame.winfo_width()
+                if main_width > 40:
+                    new_font_size_title = max(14, int(main_width / 50))
+                    new_font_size_subtitle = max(12, int(main_width / 60))
+                    self.title_label.config(font=("Helvetica", new_font_size_title, "bold"))
+                    self.subtitle_label.config(font=("Helvetica", new_font_size_subtitle))
+            except Exception as e:
+                print(f"Error al redimensionar elementos: {str(e)}")
+
+        main_frame.bind("<Configure>", resize_elements)
+
+    def procesar_paso_3(self):
+        divisiones = self.divisiones_entry.get()
+        especie = self.especie_entry.get()
+        self.excel_path = self.excel_entry.get()
+
+        if not divisiones or not self.excel_path:
+            messagebox.showerror("Error", "Complete todos los campos obligatorios (excepto especie).")
+            return
+
         try:
-            recortar_imagen(self.shapefile_path, self.imagen_hdr, recorte_dir)
+            divisiones = int(divisiones)
+            if divisiones <= 0:
+                raise ValueError("El número de divisiones debe ser mayor que cero.")
+        except ValueError:
+            messagebox.showerror("Error", "El número de divisiones debe ser un número entero positivo.")
+            return
+
+        try:
+            procesar_shapefile_y_extraer_datos(
+                self.shapefile_path,
+                self.imagen_recortada_path,
+                divisiones,
+                self.excel_path,
+                especie=especie if especie else None
+            )
         except Exception as e:
-            messagebox.showerror("Error", f"Error al recortar la imagen: {str(e)}")
+            messagebox.showerror("Error", f"Error al realizar el análisis espectral: {str(e)}")
             return
-        self.imagen_recortada_path = os.path.normpath(os.path.join(recorte_dir, "imagen_recortada.dat"))
-        if not os.path.exists(self.imagen_recortada_path):
-            messagebox.showerror("Error", "No se pudo generar la imagen recortada.")
-            return
-        self.step = 3
-        self.mostrar_paso_3()
+
+        if os.path.exists(self.excel_path):
+            self.info_label_3.config(text=f"Archivo Excel generado en: {self.excel_path}")
+            self.info_label_3.config(text="Realizando predicción con el modelo preentrenado...")
+            self.root.update_idletasks()
+            try:
+                data = pd.read_excel(self.excel_path)
+                output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
+                comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
+
+                predicciones_df = pd.read_excel(output_excel, sheet_name="Predicciones por Hoja")
+                conteo_especies = predicciones_df['Especie Predicha'].value_counts()
+                total_pic = conteo_especies.get('PIC', 0)
+                total_no_pic = conteo_especies.get('No PIC', 0)
+
+                especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
+
+                resultado_texto = (
+                    f"La especie predicha es: {especie_mayoritaria}\n"
+                    f"Hay {total_pic} casos de Picual y {total_no_pic} casos de No Picual\n"
+                    f"Archivo Excel generado en: {output_excel}"
+                )
+                self.info_label_3.config(text=resultado_texto)
+
+                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {output_excel}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
+                return
+
+            respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
+            if respuesta:
+                self.volver_inicio_callback()
+            else:
+                self.root.quit()
+        else:
+            messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
 
     def mostrar_paso_3(self):
         self.limpiar_contenedor()
