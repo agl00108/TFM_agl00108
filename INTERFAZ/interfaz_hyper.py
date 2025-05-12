@@ -6,6 +6,8 @@ from INTERFAZ.PROCESAMIENTO_HYPER.SEGMENTACION_2 import procesar_shapefile_y_ext
 from INTERFAZ.PROCESAMIENTO_HYPER.RED_NEURONAL import cargar_modelo_y_scaler, comprobar_nuevos_datos
 import os
 import pandas as pd
+import re
+import threading
 
 
 def seleccionar_archivo(tipo):
@@ -274,8 +276,7 @@ class InterfazHyper:
         self.title_label.pack(pady=(10, 2), fill="x")
 
         self.subtitle_label = tk.Label(main_frame, text="Paso 3: Análisis Espectral y Predicción",
-                                       font=("Helvetica", 10),
-                                       bg="white", justify="center", fg="#2E4A3D")
+                                       font=("Helvetica", 10), bg="white", justify="center", fg="#2E4A3D")
         self.subtitle_label.pack(pady=(0, 10), fill="x")
 
         input_frame = tk.Frame(main_frame, bg="white")
@@ -310,19 +311,34 @@ class InterfazHyper:
         self.especie_entry = ttk.Entry(input_frame, width=50)
         self.especie_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
 
-        tk.Label(input_frame, text="Ruta para guardar archivo Excel:", bg="white", font=("Helvetica", 10, "bold")).grid(
-            row=4, column=0, pady=5, sticky="e")
-        self.excel_entry = ttk.Entry(input_frame, width=50)
-        self.excel_entry.grid(row=4, column=1, pady=5, sticky="ew")
+        tk.Label(input_frame, text="Carpeta de salida:", bg="white", font=("Helvetica", 10, "bold")).grid(row=4,
+                                                                                                          column=0,
+                                                                                                          pady=5,
+                                                                                                          sticky="e")
+        self.excel_dir_entry = ttk.Entry(input_frame, width=50)
+        self.excel_dir_entry.grid(row=4, column=1, pady=5, sticky="ew")
         tk.Button(input_frame, text="Seleccionar",
-                  command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
+                  command=lambda: self.excel_dir_entry.insert(0, seleccionar_archivo("dir")),
                   bg="#d5f5e3", relief="groove", bd=2).grid(row=4, column=2, pady=5, padx=(5, 0))
+
+        tk.Label(input_frame, text="Nombre del archivo Excel (sin extensión):", bg="white",
+                 font=("Helvetica", 10, "bold")).grid(row=5, column=0, pady=5, sticky="e")
+        self.excel_nombre_entry = ttk.Entry(input_frame, width=30)
+        self.excel_nombre_entry.grid(row=5, column=1, columnspan=2, pady=5, sticky="ew")
 
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
 
-        self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
-        self.info_label_3.pack(pady=5)
+        style = ttk.Style()
+        style.configure("Green.Horizontal.TProgressbar", troughcolor="white", background="#2E4A3D")
+        self.progress_bar_3 = ttk.Progressbar(main_frame, mode="indeterminate", length=300,
+                                              style="Green.Horizontal.TProgressbar")
+        self.progress_bar_3.pack(pady=5)
+        self.status_label_3 = ttk.Label(main_frame, text="Ejecutando segmentación y prediciendo variedad...", font=("Helvetica", 10),
+                                        background="white", foreground="#2E4A3D", relief="flat")
+        self.status_label_3.pack(pady=5)
+        self.progress_bar_3.pack_forget()
+        self.status_label_3.pack_forget()
 
         self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
                                      bg="#d5f5e3", relief="groove", bd=2)
@@ -344,9 +360,10 @@ class InterfazHyper:
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
         especie = self.especie_entry.get()
-        self.excel_path = self.excel_entry.get()
+        excel_dir = self.excel_dir_entry.get()
+        excel_nombre = self.excel_nombre_entry.get()
 
-        if not divisiones or not self.excel_path:
+        if not divisiones or not excel_dir or not excel_nombre:
             messagebox.showerror("Error", "Complete todos los campos obligatorios (excepto especie).")
             return
 
@@ -358,197 +375,79 @@ class InterfazHyper:
             messagebox.showerror("Error", "El número de divisiones debe ser un número entero positivo.")
             return
 
-        try:
-            procesar_shapefile_y_extraer_datos(
-                self.shapefile_path,
-                self.imagen_recortada_path,
-                divisiones,
-                self.excel_path,
-                especie=especie if especie else None
-            )
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al realizar el análisis espectral: {str(e)}")
-            return
+        excel_nombre = re.sub(r'[<>:"/\\|?*]', '_', excel_nombre.strip())
+        self.excel_path = os.path.normpath(os.path.join(excel_dir, excel_nombre + ".xlsx"))
+        self.next_button.config(state="disabled")
+        self.progress_bar_3.pack(pady=5)
+        self.status_label_3.pack(pady=5)
+        self.progress_bar_3.start()
+        self.root.update_idletasks()
 
-        if os.path.exists(self.excel_path):
-            self.info_label_3.config(text=f"Archivo Excel generado en: {self.excel_path}")
-            self.info_label_3.config(text="Realizando predicción con el modelo preentrenado...")
-            self.root.update_idletasks()
+        def run_procesamiento():
             try:
-                data = pd.read_excel(self.excel_path)
-                output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
-                comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
-
-                predicciones_df = pd.read_excel(output_excel, sheet_name="Predicciones por Hoja")
-                conteo_especies = predicciones_df['Especie Predicha'].value_counts()
-                total_pic = conteo_especies.get('PIC', 0)
-                total_no_pic = conteo_especies.get('No PIC', 0)
-
-                especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
-
-                resultado_texto = (
-                    f"La especie predicha es: {especie_mayoritaria}\n"
-                    f"Hay {total_pic} casos de Picual y {total_no_pic} casos de No Picual\n"
-                    f"Archivo Excel generado en: {output_excel}"
+                procesar_shapefile_y_extraer_datos(
+                    self.shapefile_path,
+                    self.imagen_recortada_path,
+                    divisiones,
+                    self.excel_path,
+                    especie=especie if especie else None
                 )
-                self.info_label_3.config(text=resultado_texto)
+                if os.path.exists(self.excel_path):
+                    data = pd.read_excel(self.excel_path)
+                    output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
+                    comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
 
-                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {output_excel}")
+                    # Read the "Especies Mayoritarias por Hoja" sheet
+                    mayoritarias_df = pd.read_excel(output_excel, sheet_name="Especies Mayoritarias por Hoja")
+                    conteo_especies = mayoritarias_df['Especie Mayoritaria'].value_counts()
+                    total_pic = conteo_especies.get('PIC', 0)
+                    total_no_pic = conteo_especies.get('No PIC', 0)
+                    especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
+
+                    # Schedule success message first
+                    self.root.after(0, lambda: messagebox.showinfo("Éxito",
+                                                                   f"Predicciones completadas. Resultados guardados en: {output_excel}"))
+                    # Then update results text
+                    self.root.after(0, lambda: (
+                        self.results_text.config(state="normal"),
+                        self.results_text.delete("1.0", "end"),
+                        self.results_text.insert("end", f"Hojas de Picual: {total_pic}\n", "center"),
+                        self.results_text.insert("end", f"Hojas de No Picual: {total_no_pic}\n", "center"),
+                        self.results_text.insert("end", f"Especie predicha: {especie_mayoritaria}\n",
+                                                 ("bold", "center")),
+                        self.results_text.insert("end", f"Archivo Excel: {output_excel}\n", "center"),
+                        self.results_text.config(state="disabled"),
+                        self._complete_procesamiento()
+                    ))
+                else:
+                    self.root.after(0, lambda: self._error_procesamiento("No se pudo generar el archivo Excel."))
             except Exception as e:
-                messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
-                return
+                self.root.after(0, lambda: self._error_procesamiento(str(e)))
 
-            respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
-            if respuesta:
-                self.volver_inicio_callback()
-            else:
-                self.root.quit()
-        else:
-            messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
+        def thread_task():
+            thread = threading.Thread(target=run_procesamiento)
+            thread.daemon = True
+            thread.start()
 
-    def mostrar_paso_3(self):
-        self.limpiar_contenedor()
+        self._complete_procesamiento = lambda: (
+            self.progress_bar_3.stop(),
+            self.progress_bar_3.pack_forget(),
+            self.status_label_3.pack_forget(),
+            self.next_button.config(state="normal"),
+            messagebox.askyesno("Volver al inicio",
+                                "¿Desea volver a la pantalla principal?") and self.volver_inicio_callback() or self.root.quit()
+        )
 
-        main_frame = tk.Frame(self.container, bg="white", bd=2, relief="groove")
-        main_frame.pack(padx=20, pady=20, expand=True, fill="both")
+        self._error_procesamiento = lambda error: (
+            self.progress_bar_3.stop(),
+            self.progress_bar_3.pack_forget(),
+            self.status_label_3.pack_forget(),
+            self.next_button.config(state="normal"),
+            self.results_text.config(state="normal"),
+            self.results_text.delete("1.0", "end"),
+            self.results_text.insert("end", f"Error: {error}\n", "center"),
+            self.results_text.config(state="disabled"),
+            messagebox.showerror("Error", f"Error al realizar el análisis espectral o predicción: {error}")
+        )
 
-        self.title_label = tk.Label(main_frame, text="Procesamiento Hiperespectral", font=("Helvetica", 14, "bold"),
-                                    bg="white", justify="center")
-        self.title_label.pack(pady=(10, 2), fill="x")
-
-        self.subtitle_label = tk.Label(main_frame, text="Paso 3: Análisis Espectral y Predicción",
-                                       font=("Helvetica", 10),
-                                       bg="white", justify="center", fg="#2E4A3D")
-        self.subtitle_label.pack(pady=(0, 10), fill="x")
-
-        input_frame = tk.Frame(main_frame, bg="white")
-        input_frame.pack(padx=20, pady=10, expand=True, fill="both")
-
-        # Variables de texto para mostrar rutas
-        imagen_var = tk.StringVar(value=self.imagen_recortada_path)
-        shapefile_var = tk.StringVar(value=self.shapefile_path)
-
-        tk.Label(input_frame, text="Imagen recortada:", bg="white", font=("Helvetica", 10, "bold")).grid(row=0,
-                                                                                                         column=0,
-                                                                                                         pady=5,
-                                                                                                         sticky="e")
-        tk.Entry(input_frame, textvariable=imagen_var, state="readonly", relief="flat", bg="white",
-                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
-
-        tk.Label(input_frame, text="Shapefile:", bg="white", font=("Helvetica", 10, "bold")).grid(row=1, column=0,
-                                                                                                  pady=5, sticky="e")
-        tk.Entry(input_frame, textvariable=shapefile_var, state="readonly", relief="flat", bg="white",
-                 fg="#2E4A3D", font=("Helvetica", 9)).grid(row=1, column=1, columnspan=2, sticky="ew", pady=5)
-
-        tk.Label(input_frame, text="Divisiones por cuadrícula:", bg="white", font=("Helvetica", 10, "bold")).grid(row=2,
-                                                                                                                  column=0,
-                                                                                                                  pady=5,
-                                                                                                                  sticky="e")
-        self.divisiones_entry = ttk.Entry(input_frame, width=50)
-        self.divisiones_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
-
-        tk.Label(input_frame, text="Especie (opcional):", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
-                                                                                                           column=0,
-                                                                                                           pady=5,
-                                                                                                           sticky="e")
-        self.especie_entry = ttk.Entry(input_frame, width=50)
-        self.especie_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
-
-        tk.Label(input_frame, text="Ruta para guardar archivo Excel:", bg="white", font=("Helvetica", 10, "bold")).grid(
-            row=4, column=0, pady=5, sticky="e")
-        self.excel_entry = ttk.Entry(input_frame, width=50)
-        self.excel_entry.grid(row=4, column=1, pady=5, sticky="ew")
-        tk.Button(input_frame, text="Seleccionar",
-                  command=lambda: self.excel_entry.insert(0, seleccionar_archivo("excel")),
-                  bg="#d5f5e3", relief="groove", bd=2).grid(row=4, column=2, pady=5, padx=(5, 0))
-
-        input_frame.grid_columnconfigure(1, weight=1)
-        input_frame.grid_columnconfigure(2, weight=0)
-
-        self.info_label_3 = ttk.Label(main_frame, text="Esperando procesamiento...")
-        self.info_label_3.pack(pady=5)
-
-        self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
-                                     bg="#d5f5e3", relief="groove", bd=2)
-        self.next_button.pack(pady=20)
-
-        def resize_elements(event):
-            try:
-                main_width = main_frame.winfo_width()
-                if main_width > 40:
-                    new_font_size_title = max(14, int(main_width / 50))
-                    new_font_size_subtitle = max(12, int(main_width / 60))
-                    self.title_label.config(font=("Helvetica", new_font_size_title, "bold"))
-                    self.subtitle_label.config(font=("Helvetica", new_font_size_subtitle))
-            except Exception as e:
-                print(f"Error al redimensionar elementos: {str(e)}")
-
-        main_frame.bind("<Configure>", resize_elements)
-
-    def procesar_paso_3(self):
-        divisiones = self.divisiones_entry.get()
-        especie = self.especie_entry.get()
-        self.excel_path = self.excel_entry.get()
-
-        if not divisiones or not self.excel_path:
-            messagebox.showerror("Error", "Complete todos los campos obligatorios (excepto especie).")
-            return
-
-        try:
-            divisiones = int(divisiones)
-            if divisiones <= 0:
-                raise ValueError("El número de divisiones debe ser mayor que cero.")
-        except ValueError:
-            messagebox.showerror("Error", "El número de divisiones debe ser un número entero positivo.")
-            return
-
-        try:
-            procesar_shapefile_y_extraer_datos(
-                self.shapefile_path,
-                self.imagen_recortada_path,
-                divisiones,
-                self.excel_path,
-                especie=especie if especie else None
-            )
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al realizar el análisis espectral: {str(e)}")
-            return
-
-        if os.path.exists(self.excel_path):
-            self.info_label_3.config(text=f"Archivo Excel generado en: {self.excel_path}")
-            self.info_label_3.config(text="Realizando predicción con el modelo preentrenado...")
-            self.root.update_idletasks()
-            try:
-                data = pd.read_excel(self.excel_path)
-                output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
-                comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
-
-                # Leer el Excel generado para contar especies
-                predicciones_df = pd.read_excel(output_excel, sheet_name="Predicciones por Hoja")
-                conteo_especies = predicciones_df['Especie Predicha'].value_counts()
-                total_pic = conteo_especies.get('PIC', 0)
-                total_no_pic = conteo_especies.get('No PIC', 0)
-
-                # Determinar especie mayoritaria
-                especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
-
-                # Mostrar resultados en pantalla
-                resultado_texto = (
-                    f"La especie predicha es: {especie_mayoritaria}\n"
-                    f"Hay {total_pic} casos de Picual y {total_no_pic} casos de No Picual\n"
-                    f"Archivo Excel generado en: {output_excel}"
-                )
-                self.info_label_3.config(text=resultado_texto)
-
-                messagebox.showinfo("Éxito", f"Predicciones completadas. Resultados guardados en: {output_excel}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al realizar la predicción: {str(e)}")
-                return
-
-            respuesta = messagebox.askyesno("Volver al inicio", "¿Desea volver a la pantalla principal?")
-            if respuesta:
-                self.volver_inicio_callback()
-            else:
-                self.root.quit()
-        else:
-            messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
+        thread_task()
