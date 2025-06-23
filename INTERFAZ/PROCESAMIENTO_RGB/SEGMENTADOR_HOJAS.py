@@ -8,7 +8,7 @@ import pandas as pd
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(CURRENT_DIR)
 
-from VGG16 import predecir_con_modelo
+from ModeloRGB import predecir_con_modelo
 
 class SegmentadorHojas:
     def __init__(self, modelo_path=None):
@@ -17,7 +17,6 @@ class SegmentadorHojas:
         self.contornos_info = []
         self.imagen_anotada = None
 
-        # Cargar el modelo al iniciar
         try:
             if modelo_path is None:
                 modelo_path = os.path.join(CURRENT_DIR, "modelo_vgg16.h5")

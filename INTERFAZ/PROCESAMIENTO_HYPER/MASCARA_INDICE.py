@@ -113,7 +113,7 @@ def procesar_imagen(ruta_imagen, exportar_raster, exportar_vector, ruta_exportac
             dst.write(mascara_vegetacion.astype(np.uint8), 1)
         print(f"Máscara raster guardada en: {ruta_mascara_tif}")
 
-    # Exportar el resultado como shapefile (vectorial) (opcional)
+    # Exportar el resultado como shapefile (vectorial)
     if exportar_vector:
         ruta_shapefile = os.path.join(ruta_exportacion, nombre_archivo + '.shp')
         exportar_a_vector(imagen, mascara_vegetacion, ruta_shapefile, metadatos=metadatos)

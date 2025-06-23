@@ -21,7 +21,7 @@ Returns:
 """
 
 def recortar_imagen(shapefile, imagen, salida, output_filename="imagen_recortada"):
-    print(f"Intentando leer shapefile: {shapefile}")  # Depuración
+    print(f"Intentando leer shapefile: {shapefile}")
     try:
         gdf = gpd.read_file(shapefile)
     except Exception as e:

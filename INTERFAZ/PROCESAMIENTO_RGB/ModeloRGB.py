@@ -26,7 +26,7 @@ def establecer_semilla(seed=1234):
     tf.random.set_seed(seed)
     random.seed(seed)
 
-def cargar_datos_variedades(directorio, img_size=(128, 128), batch_size=BATCH_SIZE, test_size=0.2):
+def cargar_datos_variedades(directorio, img_size=(224, 224), batch_size=BATCH_SIZE, test_size=0.2):
     datagen = ImageDataGenerator(rescale=1./255, validation_split=test_size)
     train_generator = datagen.flow_from_directory(directorio, target_size=img_size, batch_size=batch_size, class_mode='binary', subset='training', shuffle=True)
     validation_generator = datagen.flow_from_directory(directorio, target_size=img_size, batch_size=batch_size, class_mode='binary', subset='validation', shuffle=True)
@@ -50,8 +50,21 @@ def ejecutar_cnn_transfer_learning(train_gen, val_gen, save_path='modelo_vgg16.h
     establecer_semilla()
     start_time = time.time()
 
-    base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(128, 128, 3))
+    #Definición de los modelos
+    #VGG16
+    #base_model = tf.keras.applications.VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
+    #ResNet50
+    #base_model = tf.keras.applications.ResNet50(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
+    #InceptionV3
+    #base_model = tf.keras.applications.InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+    #Xception
+    #base_model = tf.keras.applications.Xception(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+    #MobileNetV2
+    #base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(128, 128, 3))
+    #DenseNet121
+    base_model = tf.keras.applications.DenseNet121(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
     base_model.trainable = False
+
 
     model = Sequential([
         base_model,
@@ -79,7 +92,7 @@ def ejecutar_cnn_transfer_learning(train_gen, val_gen, save_path='modelo_vgg16.h
     y_pred_prob = model.predict(val_gen)
     y_pred = (y_pred_prob > 0.5).astype("int32")
 
-    nombre_modelo = "MobileNetV2 Transfer Learning"
+    nombre_modelo = "DenseNet121 Transfer Learning"
     mostrar_resultados(y_true, y_pred, loss, accuracy, nombre_modelo)
 
     model.save(save_path)
@@ -89,7 +102,7 @@ def ejecutar_cnn_transfer_learning(train_gen, val_gen, save_path='modelo_vgg16.h
     print(f'Tiempo de ejecución: {end_time - start_time:.2f} segundos')
     return model
 
-def predecir_con_modelo(model, directorio, img_size=(128, 128)):
+def predecir_con_modelo(model, directorio, img_size=(224, 224)):
     resultados = []
     for archivo in os.listdir(directorio):
         if archivo.endswith('.jpg') or archivo.endswith('.png'):
@@ -102,7 +115,7 @@ def predecir_con_modelo(model, directorio, img_size=(128, 128)):
             prediccion_binaria = (prediccion > 0.5).astype(int)
             resultados.append({
                 'Archivo': archivo,
-                'Predicción_Modelo': 'Picual' if prediccion_binaria == 1 else 'Arbequina',
+                'Predicción_Modelo': 'Picual' if prediccion_binaria == 1 else 'No Picual',
                 'Probabilidad': prediccion[0][0]
             })
     return pd.DataFrame(resultados)
@@ -112,6 +125,8 @@ if __name__ == "__main__":
     directorio = '../../RGB/Dataset_hojas/Dataset Entrenamiento'
     train_gen, val_gen = cargar_datos_variedades(directorio)
     model = ejecutar_cnn_transfer_learning(train_gen, val_gen)
+    resultados = predecir_con_modelo(model, '../../RGB/Dataset_hojas/Dataset Prueba')
+    print(resultados)
 
 '''
 Best val_accuracy So Far: 0.9821428656578064

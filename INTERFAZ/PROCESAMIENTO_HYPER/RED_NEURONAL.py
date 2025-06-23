@@ -81,6 +81,7 @@ def preparar_datos(df, test_size=0.2, random_state=42):
     Returns:
         tuple: X_train, X_test, y_train, y_test, scaler
     """
+
     # Filtrar filas donde ninguna banda (columnas 4 a 6) tenga un valor > 0.35
     bandas = df.iloc[:, 4:7]
     filtro = (bandas <= 0.35).all(axis=1)
@@ -319,6 +320,15 @@ def ejecutar_cnn(df, n_splits=5):
     print(f'Tiempo total de ejecución: {end_time - start_time:.2f} segundos')
     return model, scaler
 
+import pandas as pd
+import numpy as np
+from collections import Counter
+import openpyxl
+from openpyxl.styles import Font, Alignment
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix
+
 def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="predicciones_por_hoja.xlsx"):
     """
     Preprocesa nuevos datos, realiza predicciones y genera un Excel con la especie mayoritaria por hoja.
@@ -331,7 +341,6 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     """
     print(f"Número de columnas en el DataFrame de nuevos datos: {nuevos_datos.shape[1]}")
 
-    # Filtrar filas donde ninguna banda (columnas 4 a 6) tenga un valor > 0.35
     bandas_nuevas = nuevos_datos.iloc[:, 4:7]
     filtro_nuevas = (bandas_nuevas <= 0.35).all(axis=1)
     nuevos_datos_filtrados = nuevos_datos[filtro_nuevas].copy()
@@ -341,15 +350,18 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         print("Error: No hay datos después de filtrar. Verifica los datos de entrada.")
         return
 
-    # Preparar datos para predicción
     X_nuevos = nuevos_datos_filtrados.iloc[:, 4:].values
-    y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
-    hojas = nuevos_datos_filtrados['Hoja'].values
+
+    if 'Especie' in nuevos_datos_filtrados.columns:
+        y_nuevos = nuevos_datos_filtrados['Especie'].apply(lambda x: 0 if x == 'PIC' else 1).values
+        hojas = nuevos_datos_filtrados['Hoja'].values
+    else:
+        print("Depuración: Columna 'Especie' no encontrada, omitiendo predicciones basadas en especie.")
+        y_nuevos = np.zeros(len(nuevos_datos_filtrados))  # Valores por defecto
+        hojas = nuevos_datos_filtrados.index.values  # Usar índices como placeholder
 
     print(f"Forma de X_nuevos antes de reshape: {X_nuevos.shape}")
-    X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1]))  # Asegurar 2D antes del escalado
-    # Normalización comentada para pruebas
-    # X_nuevos = scaler.transform(X_nuevos)
+    X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1]))
     X_nuevos = X_nuevos.reshape((X_nuevos.shape[0], X_nuevos.shape[1], 1)).astype(np.float32)
     print(f"Forma de X_nuevos después de reshape: {X_nuevos.shape}")
     print(f"Tipo de X_nuevos: {type(X_nuevos)}, dtype: {X_nuevos.dtype}")
@@ -364,27 +376,28 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
     print("\nValores reales:")
     print(y_nuevos)
     print("\nInforme de clasificación para los nuevos datos:")
-    print(classification_report(y_nuevos, y_pred))
+    if 'Especie' in nuevos_datos_filtrados.columns:
+        print(classification_report(y_nuevos, y_pred))
+    else:
+        print("No se generó informe de clasificación porque no hay columna 'Especie'.")
 
-    # Generar matriz de confusión
-    cm = confusion_matrix(y_nuevos, y_pred)
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", cbar=False,
-                annot_kws={"size": 16, "weight": "bold"}, linewidths=1.5, linecolor="black")
-    plt.title('Matriz de Confusión - Nuevos Datos')
-    plt.xlabel('Predicciones')
-    plt.ylabel('Valores Reales')
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.show()
+    if 'Especie' in nuevos_datos_filtrados.columns:
+        cm = confusion_matrix(y_nuevos, y_pred)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", cbar=False,
+                    annot_kws={"size": 16, "weight": "bold"}, linewidths=1.5, linecolor="black")
+        plt.title('Matriz de Confusión - Nuevos Datos')
+        plt.xlabel('Predicciones')
+        plt.ylabel('Valores Reales')
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.show()
 
-    # Crear DataFrame con predicciones
     predicciones_por_hoja = pd.DataFrame({
         'Hoja': hojas,
         'Especie_Predicha': y_pred_especie
     })
 
-    # Determinar especie mayoritaria por hoja
     especie_mayoritaria_por_hoja = {}
     for hoja in predicciones_por_hoja['Hoja'].unique():
         especies_hoja = predicciones_por_hoja[predicciones_por_hoja['Hoja'] == hoja]['Especie_Predicha']
@@ -392,11 +405,9 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         especie_mayoritaria = conteo.most_common(1)[0][0]
         especie_mayoritaria_por_hoja[hoja] = especie_mayoritaria
 
-    # Crear archivo Excel
     wb = openpyxl.Workbook()
     wb.remove(wb['Sheet'])
 
-    # Hoja con especies mayoritarias
     ws_hojas = wb.create_sheet(title="Especies Mayoritarias por Hoja")
     ws_hojas['A1'] = 'Hoja'
     ws_hojas['B1'] = 'Especie Mayoritaria'
@@ -413,7 +424,6 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
         ws_hojas[f'B{row}'].alignment = Alignment(horizontal='center')
         row += 1
 
-    # Hoja con todas las predicciones
     ws_predicciones = wb.create_sheet(title="Predicciones por Hoja")
     ws_predicciones['A1'] = 'Hoja'
     ws_predicciones['B1'] = 'Especie Predicha'
@@ -441,7 +451,7 @@ def comprobar_nuevos_datos(model, nuevos_datos, scaler, output_excel="prediccion
 if __name__ == "__main__":
     data = pd.read_excel('../../Resultados/excel_2/TODOS/TODOS.xlsx')
     nuevos_datos = pd.read_excel('../../Resultados/PICUAL/Picual_4/3_Segmentacion_2/resultados_pic4_2.xlsx')
-
     comparar_con_pca(data.iloc[:, 4:].values, nuevos_datos.iloc[:, 4:].values)
+
     model, scaler = ejecutar_cnn(data)
     comprobar_nuevos_datos(model, nuevos_datos, scaler)

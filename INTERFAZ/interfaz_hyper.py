@@ -102,7 +102,7 @@ class InterfazHyper:
 
         self.next_button = tk.Button(main_frame, text="Siguiente", command=self.procesar_paso_1,
                                      bg="#d5f5e3", relief="groove", bd=2)
-        self.next_button.pack(pady=20)  # Sin fill="x" ni padx para no ocupar todo el ancho
+        self.next_button.pack(pady=20)
 
         def resize_elements(event):
             try:
@@ -185,7 +185,6 @@ class InterfazHyper:
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
 
-        # Create progress bar and status label, initially hidden
         style = ttk.Style()
         style.configure("Green.Horizontal.TProgressbar", troughcolor="white", background="#2E4A3D")
         self.progress_bar = ttk.Progressbar(main_frame, mode="indeterminate", length=300,
@@ -304,7 +303,7 @@ class InterfazHyper:
         self.divisiones_entry = ttk.Entry(input_frame, width=50)
         self.divisiones_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
 
-        tk.Label(input_frame, text="Especie (opcional):", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
+        tk.Label(input_frame, text="Especie:", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
                                                                                                            column=0,
                                                                                                            pady=5,
                                                                                                            sticky="e")
@@ -326,6 +325,12 @@ class InterfazHyper:
         self.excel_nombre_entry = ttk.Entry(input_frame, width=30)
         self.excel_nombre_entry.grid(row=5, column=1, columnspan=2, pady=5, sticky="ew")
 
+        self.results_text = tk.Text(main_frame, height=6, width=50, state="disabled", wrap="word", bg="white",
+                                    fg="#2E4A3D", relief="flat", font=("Helvetica", 10))
+        self.results_text.pack(pady=10, fill="x", padx=20)
+        self.results_text.tag_configure("center", justify="center")
+        self.results_text.tag_configure("bold", font=("Helvetica", 10, "bold"))
+
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
 
@@ -334,8 +339,8 @@ class InterfazHyper:
         self.progress_bar_3 = ttk.Progressbar(main_frame, mode="indeterminate", length=300,
                                               style="Green.Horizontal.TProgressbar")
         self.progress_bar_3.pack(pady=5)
-        self.status_label_3 = ttk.Label(main_frame, text="Ejecutando segmentación y prediciendo variedad...", font=("Helvetica", 10),
-                                        background="white", foreground="#2E4A3D", relief="flat")
+        self.status_label_3 = ttk.Label(main_frame, text="Ejecutando segmentación y prediciendo variedad...",
+                                        font=("Helvetica", 10), background="white", foreground="#2E4A3D", relief="flat")
         self.status_label_3.pack(pady=5)
         self.progress_bar_3.pack_forget()
         self.status_label_3.pack_forget()
@@ -359,12 +364,17 @@ class InterfazHyper:
 
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
-        especie = self.especie_entry.get()
+        especie = self.especie_entry.get().strip()  # Eliminar espacios en blanco
         excel_dir = self.excel_dir_entry.get()
         excel_nombre = self.excel_nombre_entry.get()
 
         if not divisiones or not excel_dir or not excel_nombre:
-            messagebox.showerror("Error", "Complete todos los campos obligatorios (excepto especie).")
+            messagebox.showerror("Error",
+                                 "Complete todos los campos obligatorios (Divisiones, Carpeta de salida y Nombre del archivo Excel).")
+            return
+
+        if not especie:
+            messagebox.showerror("Error", "El campo Especie es obligatorio. Si no conoce la especie, ingrese 'No Sabe'.")
             return
 
         try:
@@ -374,6 +384,10 @@ class InterfazHyper:
         except ValueError:
             messagebox.showerror("Error", "El número de divisiones debe ser un número entero positivo.")
             return
+
+        # Asignar None si especie es "None" (case-insensitive)
+        especie_param = None if especie.lower() == "none" else especie
+        print(f"Depuración: Pasando especie_param = {especie_param}")  # Depuración
 
         excel_nombre = re.sub(r'[<>:"/\\|?*]', '_', excel_nombre.strip())
         self.excel_path = os.path.normpath(os.path.join(excel_dir, excel_nombre + ".xlsx"))
@@ -390,24 +404,34 @@ class InterfazHyper:
                     self.imagen_recortada_path,
                     divisiones,
                     self.excel_path,
-                    especie=especie if especie else None
+                    especie=especie_param
                 )
                 if os.path.exists(self.excel_path):
+                    print(f"Depuración: Excel generado en {self.excel_path}")  # Depuración
                     data = pd.read_excel(self.excel_path)
                     output_excel = os.path.splitext(self.excel_path)[0] + '_predicciones.xlsx'
                     comprobar_nuevos_datos(self.model, data, self.scaler, output_excel=output_excel)
 
-                    # Read the "Especies Mayoritarias por Hoja" sheet
-                    mayoritarias_df = pd.read_excel(output_excel, sheet_name="Especies Mayoritarias por Hoja")
-                    conteo_especies = mayoritarias_df['Especie Mayoritaria'].value_counts()
-                    total_pic = conteo_especies.get('PIC', 0)
-                    total_no_pic = conteo_especies.get('No PIC', 0)
-                    especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
+                    try:
+                        mayoritarias_df = pd.read_excel(output_excel, sheet_name="Especies Mayoritarias por Hoja")
+                        if 'Especie Mayoritaria' in mayoritarias_df.columns:
+                            conteo_especies = mayoritarias_df['Especie Mayoritaria'].value_counts()
+                            total_pic = conteo_especies.get('PIC', 0)
+                            total_no_pic = conteo_especies.get('No PIC', 0)
+                            especie_mayoritaria = 'Picual' if total_pic > total_no_pic else 'No Picual'
+                        else:
+                            total_pic = 0
+                            total_no_pic = 0
+                            especie_mayoritaria = "No disponible (sin especie proporcionada)"
+                            print("Depuración: No se encontró la columna 'Especie Mayoritaria', asumiendo sin especie.")
+                    except (ValueError, KeyError) as e:
+                        print(f"Depuración: Error al leer 'Especies Mayoritarias por Hoja': {str(e)}")
+                        total_pic = 0
+                        total_no_pic = 0
+                        especie_mayoritaria = "No disponible (error en datos)"
 
-                    # Schedule success message first
                     self.root.after(0, lambda: messagebox.showinfo("Éxito",
                                                                    f"Predicciones completadas. Resultados guardados en: {output_excel}"))
-                    # Then update results text
                     self.root.after(0, lambda: (
                         self.results_text.config(state="normal"),
                         self.results_text.delete("1.0", "end"),
@@ -416,13 +440,17 @@ class InterfazHyper:
                         self.results_text.insert("end", f"Especie predicha: {especie_mayoritaria}\n",
                                                  ("bold", "center")),
                         self.results_text.insert("end", f"Archivo Excel: {output_excel}\n", "center"),
+                        (self.results_text.insert("end", f"Especie proporcionada: {especie_param}\n", "center")
+                         if especie_param else None),
                         self.results_text.config(state="disabled"),
                         self._complete_procesamiento()
                     ))
                 else:
                     self.root.after(0, lambda: self._error_procesamiento("No se pudo generar el archivo Excel."))
             except Exception as e:
-                self.root.after(0, lambda: self._error_procesamiento(str(e)))
+                error_msg = f"Error al realizar el análisis espectral o predicción: {str(e)}"
+                print(f"Depuración: Excepción capturada - {error_msg}")  # Depuración
+                self.root.after(0, lambda: self._error_procesamiento(error_msg))
 
         def thread_task():
             thread = threading.Thread(target=run_procesamiento)
@@ -447,7 +475,7 @@ class InterfazHyper:
             self.results_text.delete("1.0", "end"),
             self.results_text.insert("end", f"Error: {error}\n", "center"),
             self.results_text.config(state="disabled"),
-            messagebox.showerror("Error", f"Error al realizar el análisis espectral o predicción: {error}")
+            messagebox.showerror("Error", error)
         )
 
         thread_task()
