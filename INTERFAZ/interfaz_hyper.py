@@ -304,9 +304,9 @@ class InterfazHyper:
         self.divisiones_entry.grid(row=2, column=1, columnspan=2, pady=5, sticky="ew")
 
         tk.Label(input_frame, text="Especie:", bg="white", font=("Helvetica", 10, "bold")).grid(row=3,
-                                                                                                           column=0,
-                                                                                                           pady=5,
-                                                                                                           sticky="e")
+                                                                                                column=0,
+                                                                                                pady=5,
+                                                                                                sticky="e")
         self.especie_entry = ttk.Entry(input_frame, width=50)
         self.especie_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
 
@@ -338,16 +338,21 @@ class InterfazHyper:
         style.configure("Green.Horizontal.TProgressbar", troughcolor="white", background="#2E4A3D")
         self.progress_bar_3 = ttk.Progressbar(main_frame, mode="indeterminate", length=300,
                                               style="Green.Horizontal.TProgressbar")
-        self.progress_bar_3.pack(pady=5)
+        self.progress_bar_3.pack(pady=2)  # Reduced pady to move progress bar higher
         self.status_label_3 = ttk.Label(main_frame, text="Ejecutando segmentación y prediciendo variedad...",
                                         font=("Helvetica", 10), background="white", foreground="#2E4A3D", relief="flat")
-        self.status_label_3.pack(pady=5)
+        self.status_label_3.pack(pady=2)  # Reduced pady for consistency
         self.progress_bar_3.pack_forget()
         self.status_label_3.pack_forget()
 
-        self.next_button = tk.Button(main_frame, text="Finalizar", command=self.procesar_paso_3,
+        button_frame = tk.Frame(main_frame, bg="white")
+        button_frame.pack(pady=10)
+        self.next_button = tk.Button(button_frame, text="Finalizar", command=self.procesar_paso_3,
                                      bg="#d5f5e3", relief="groove", bd=2)
-        self.next_button.pack(pady=20)
+        self.next_button.pack(side="left", padx=5)
+        self.volver_button = tk.Button(button_frame, text="Volver al Inicio", command=self.volver_inicio_callback,
+                                       bg="#d5f5e3", relief="groove", bd=2, state="disabled")
+        self.volver_button.pack(side="left", padx=5)
 
         def resize_elements(event):
             try:
@@ -364,7 +369,7 @@ class InterfazHyper:
 
     def procesar_paso_3(self):
         divisiones = self.divisiones_entry.get()
-        especie = self.especie_entry.get().strip()  # Eliminar espacios en blanco
+        especie = self.especie_entry.get().strip()
         excel_dir = self.excel_dir_entry.get()
         excel_nombre = self.excel_nombre_entry.get()
 
@@ -374,7 +379,8 @@ class InterfazHyper:
             return
 
         if not especie:
-            messagebox.showerror("Error", "El campo Especie es obligatorio. Si no conoce la especie, ingrese 'No Sabe'.")
+            messagebox.showerror("Error",
+                                 "El campo Especie es obligatorio. Si no conoce la especie, ingrese 'No Sabe'.")
             return
 
         try:
@@ -392,8 +398,9 @@ class InterfazHyper:
         excel_nombre = re.sub(r'[<>:"/\\|?*]', '_', excel_nombre.strip())
         self.excel_path = os.path.normpath(os.path.join(excel_dir, excel_nombre + ".xlsx"))
         self.next_button.config(state="disabled")
-        self.progress_bar_3.pack(pady=5)
-        self.status_label_3.pack(pady=5)
+        self.volver_button.config(state="disabled")
+        self.progress_bar_3.pack(pady=2)
+        self.status_label_3.pack(pady=2)
         self.progress_bar_3.start()
         self.root.update_idletasks()
 
@@ -430,8 +437,6 @@ class InterfazHyper:
                         total_no_pic = 0
                         especie_mayoritaria = "No disponible (error en datos)"
 
-                    self.root.after(0, lambda: messagebox.showinfo("Éxito",
-                                                                   f"Predicciones completadas. Resultados guardados en: {output_excel}"))
                     self.root.after(0, lambda: (
                         self.results_text.config(state="normal"),
                         self.results_text.delete("1.0", "end"),
@@ -462,8 +467,7 @@ class InterfazHyper:
             self.progress_bar_3.pack_forget(),
             self.status_label_3.pack_forget(),
             self.next_button.config(state="normal"),
-            messagebox.askyesno("Volver al inicio",
-                                "¿Desea volver a la pantalla principal?") and self.volver_inicio_callback() or self.root.quit()
+            self.volver_button.config(state="normal")
         )
 
         self._error_procesamiento = lambda error: (
@@ -471,6 +475,7 @@ class InterfazHyper:
             self.progress_bar_3.pack_forget(),
             self.status_label_3.pack_forget(),
             self.next_button.config(state="normal"),
+            self.volver_button.config(state="normal"),
             self.results_text.config(state="normal"),
             self.results_text.delete("1.0", "end"),
             self.results_text.insert("end", f"Error: {error}\n", "center"),
